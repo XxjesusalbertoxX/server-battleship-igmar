@@ -1,0 +1,12 @@
+{
+  "extends": "@adonisjs/tsconfig/tsconfig.app.json",
+  "compilerOptions": {
+    "types": [
+    "@adonisjs/core",
+    "@adonisjs/http-server"
+  ],
+    "rootDir": "./",
+    "outDir": "./build"
+  },
+  "include": ["start/**/*.ts", "app/**/*.ts", "../../../../../server/app/types/**/*.d.ts"]
+}
