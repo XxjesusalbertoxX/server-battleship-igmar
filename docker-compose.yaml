@@ -7,20 +7,19 @@ services:
       TZ: UTC
       PORT: 3333
       HOST: 0.0.0.0
-      LOG_LEVEL: info
-      APP_KEY: 7Otq2phcA_g__DtX_NQLJZRQN7jxIdFa
-      NODE_ENV: production
+      NODE_ENV: development
       DB_CONNECTION: pg
       DB_USER: admin
       DB_PASSWORD: admin123
       DB_DATABASE: db_igmar
-      DB_HOST: postgres
+      DB_HOST: postgres      # <— nombre del servicio en la red
       DB_PORT: 5432
       MONGO_URL: mongodb://admin:admin123@mongo:27017/igmar_db?authSource=admin
+    volumes:
+      - ./:/app
     networks:
       - igmar-net
 
 networks:
   igmar-net:
-    name: igmar-net
     external: true
