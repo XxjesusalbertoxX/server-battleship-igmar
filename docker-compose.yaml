@@ -21,9 +21,6 @@ services:
       MONGO_URL: mongodb://admin:admin123@mongo:27017/igmar_db?authSource=admin
     networks:
       - igmar-net
-    depends_on:
-      - mongo
-      - postgres
 
 networks:
   igmar-net:
