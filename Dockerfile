@@ -1,12 +1,16 @@
-FROM node:20-alpine
+FROM node:20-alpine AS build
 
 WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN node ace build --production
 
+# Segunda etapa solo con el runtime
+FROM node:20-alpine
+WORKDIR /app
+COPY --from=build /app/build ./build
 COPY package*.json ./
 RUN npm ci --omit=dev
-
-COPY build ./build
-COPY ace.js ./
-
 EXPOSE 3333
 CMD ["node", "build/server.js"]
