@@ -236,7 +236,7 @@ export default class GameService {
   }
 
   // Inicio Simon Says
-  private async startSimonGame(game: any, userId: number) {
+  private async startSimonGame(game: any, _userId: number) {
     const playersResult = await Promise.all(
       game.players.map((pId: Types.ObjectId) => this.playerGameModel.find_by_id(pId.toString()))
     )
@@ -562,7 +562,7 @@ export default class GameService {
     }
   }
 
-  public async setColors(gameId: string, userId: number, colors?: string[]) {
+  public async setColors(gameId: string, _userId: number, colors?: string[]) {
     const game = await this.gameModel.find_by_id(gameId)
     if (!game) throw new Error('Juego no encontrado')
 
