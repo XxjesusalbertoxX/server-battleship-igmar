@@ -16,7 +16,7 @@ export class BaseModel<TDocument extends Document, CreateInput, UpdateInput = Pa
   }
 
   async find_by_id(id: string) {
-    return this.model.findById(id)
+    return this.model.findById(id).lean().exec()
   }
 
   async find_one(filter: any) {
@@ -25,6 +25,10 @@ export class BaseModel<TDocument extends Document, CreateInput, UpdateInput = Pa
 
   async find_all(filter: any = {}) {
     return this.model.find(filter)
+  }
+
+  async find_many(filter: any = {}) {
+    return this.find_all(filter)
   }
 
   async delete_by_id(id: string) {
@@ -42,5 +46,9 @@ export class BaseModel<TDocument extends Document, CreateInput, UpdateInput = Pa
 
   get_model() {
     return this.model
+  }
+
+  async find_by_code(code: string) {
+    return this.model.findOne({ code })
   }
 }

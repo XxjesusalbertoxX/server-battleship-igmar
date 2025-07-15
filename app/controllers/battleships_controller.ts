@@ -1,80 +1,28 @@
-import type { HttpContext } from '@adonisjs/core/http'
+import { HttpContext } from '@adonisjs/core/http'
 import GameService from '../services/game.service.js'
-import PlayerGameService from '../services/player_game.service.js'
 
 export default class BattleshipsController {
-  private playerGameService = new PlayerGameService()
   private gameService = new GameService()
 
-  // Iniciar la partida, asignar tableros y turno inicial
-  // Volvemos a exponer startGame
-  public async startGame({ authUser, params, response }: HttpContext) {
-    try {
-      const userId = Number(authUser.id)
-      const payload = await this.gameService.startGame(params.id, userId)
-      return response.ok(payload)
-    } catch (error) {
-      return response.internalServerError({ message: error.message })
-    }
-  }
-
-  // Atacka y regresa si fue hit o miss
+  // Ataque en Battleship
   public async attack({ authUser, params, response }: HttpContext) {
-    try {
-      const userId = Number(authUser.id)
-      const gameId = params.id
-      const x = Number(params.x)
-      const y = Number(params.y)
-
-      if (Number.isNaN(x) || Number.isNaN(y) || x < 0 || x > 7 || y < 0 || y > 7) {
-        return response.unprocessableEntity({ error: 'Coordenadas inválidas' })
-      }
-
-      // Buscar el playerGame del usuario en esa partida
-      const playerGame = await this.playerGameService.findPlayerInGame(userId, gameId)
-      if (!playerGame) {
-        return response.unauthorized({ error: 'No perteneces a esta partida' })
-      }
-
-      // Ejecutar el ataque
-      const result = await this.gameService.attack(userId, gameId, x, y)
-
-      return response.ok(result)
-    } catch (error) {
-      if (error.message.includes('turno')) {
-        return response.unauthorized({ message: error.message })
-      }
-      if (error.message.includes('Casilla ya atacada')) {
-        return response.unprocessableEntity({ message: error.message })
-      }
-      console.error('Error en attack:', error)
-      return response.internalServerError({ message: error.message })
-    }
-  }
-
-  // Actualizar el último "heartbeat" para saber si jugador está activo
-  public async heartbeat({ authUser, params, response }: HttpContext) {
+    // console.log('parametros:', params)
     try {
       const userId = Number(authUser.id)
       const gameId = params.id
 
-      const result = await this.playerGameService.heartbeat(userId, gameId)
+      // Validar params.row y params.col
+      const row = Number(params.x)
+      const col = Number(params.y)
+
+      if (Number.isNaN(row) || Number.isNaN(col) || row < 0 || row > 7 || col < 0 || col > 7) {
+        return response.badRequest({ message: 'Fila o columna inválida' })
+      }
+
+      const result = await this.gameService.attack(userId, gameId, row, col)
       return response.ok(result)
     } catch (error) {
-      return response.notFound({ message: error.message })
-    }
-  }
-
-  // Rendirse y abandonar la partida
-  public async surrender({ authUser, params, response }: HttpContext) {
-    try {
-      const userId = Number(authUser.id)
-      const gameId = params.id
-
-      const result = await this.playerGameService.surrender(userId, gameId)
-      return response.ok(result)
-    } catch (error) {
-      return response.notFound({ message: error.message })
+      return response.badRequest({ message: error.message })
     }
   }
 }

@@ -1,9 +1,11 @@
 import AuthController from '#controllers/auth_controller'
 import PeopleController from '#controllers/people_controller'
-const GameController = () => import('#controllers/games_controller')
 import router from '@adonisjs/core/services/router'
 import AuthJwt from '#middleware/auth_jwt_middleware'
 import UserModel from '#models/user'
+const GameController = () => import('#controllers/games_controller')
+const StatsController = () => import('#controllers/stats_controller')
+const SimonsaysController = () => import('#controllers/simonsays_controller')
 const BattleshipsController = () => import('#controllers/battleships_controller')
 
 router.post('/register', (ctx) => new AuthController().register(ctx))
@@ -32,31 +34,80 @@ router
     },
   ])
 
-router
-  .group(() => {
-    router.post(':gameType/create', [GameController, 'createGame'])
-    router.post('/join', [GameController, 'joinGame'])
-    router.get('/:id', [GameController, 'showGame'])
-    router.post('/:id/ready', [GameController, 'setReady'])
-    router.get('/:id/lobby-status', [GameController, 'lobbyStatus'])
-    router.get('/:id/status', [GameController, 'gameStatus'])
-  })
-  .prefix('/game')
-  .middleware([
-    async (ctx, next) => {
-      const mw = new AuthJwt()
-      await mw.handle(ctx, next)
-    },
-  ])
+// router
+//   .group(() => {
+//     router.post(':gameType/create', [GameController, 'createGame'])
+//     router.post('/join', [GameController, 'joinGame'])
+//     router.get('/:id', [GameController, 'showGame'])
+//     router.post('/:id/ready', [GameController, 'setReady'])
+//     router.get('/:id/lobby-status', [GameController, 'lobbyStatus'])
+//     router.get('/:id/status', [GameController, 'gameStatus'])
+//   })
+//   .prefix('/game')
+//   .middleware([
+//     async (ctx, next) => {
+//       const mw = new AuthJwt()
+//       await mw.handle(ctx, next)
+//     },
+//   ])
+
+// router
+//   .group(() => {
+//     router.post('/:id/start', [BattleshipsController, 'startGame'])
+//     router.post('/:id/attack/:x/:y', [BattleshipsController, 'attack'])
+//     router.post('/:id/surrender', [BattleshipsController, 'surrender'])
+//     router.post('/:id/heartbeat', [BattleshipsController, 'heartbeat'])
+//   })
+//   .prefix('/battleship')
+//   .middleware([
+//     async (ctx, next) => {
+//       const mw = new AuthJwt()
+//       await mw.handle(ctx, next)
+//     },
+//   ])
 
 router
   .group(() => {
-    router.post('/:id/start', [BattleshipsController, 'startGame'])
+    router.post('/:id/start', [GameController, 'start'])
+    router.post(':gameType/create', [GameController, 'createGame'])
+    router.post('/join', [GameController, 'joinGame'])
+    router.post('/:id/ready', [GameController, 'setReady'])
+    router.get('/:id/lobby-status', [GameController, 'lobbyStatus'])
+    router.get('/:id/status', [GameController, 'gameStatus'])
+    router.post('/:id/rematch', [GameController, 'requestRematch'])
+  })
+  .prefix('/game')
+  .middleware(async (ctx, next) => {
+    await new AuthJwt().handle(ctx, next)
+  })
+
+// Rutas específicas de Battleship en /battleship
+router
+  .group(() => {
     router.post('/:id/attack/:x/:y', [BattleshipsController, 'attack'])
-    router.post('/:id/surrender', [BattleshipsController, 'surrender'])
-    router.post('/:id/heartbeat', [BattleshipsController, 'heartbeat'])
   })
   .prefix('/battleship')
+  .middleware(async (ctx, next) => {
+    await new AuthJwt().handle(ctx, next)
+  })
+
+// Rutas específicas de Simon Says en /simonsays
+router
+  .group(() => {
+    router.post('/:id/colors', [SimonsaysController, 'setColors'])
+    router.post('/:id/play', [SimonsaysController, 'play'])
+  })
+  .prefix('/simonsays')
+  .middleware(async (ctx, next) => {
+    await new AuthJwt().handle(ctx, next)
+  })
+
+router
+  .group(() => {
+    router.get('/battleship', [StatsController, 'getBattleshipStats'])
+    router.get('/battleship/:id', [StatsController, 'getGameDetails'])
+  })
+  .prefix('/stats')
   .middleware([
     async (ctx, next) => {
       const mw = new AuthJwt()

@@ -1,4 +1,4 @@
-import { Schema, model, Document, Model, Types } from 'mongoose'
+import mongoose, { Schema, Document, Model, Types } from 'mongoose'
 import { BaseModel } from './base_model.js'
 
 // Documento completo
@@ -34,7 +34,8 @@ const MoveSchema = new Schema<MoveDoc>(
   { timestamps: true }
 )
 
-const MoveMongooseModel: Model<MoveDoc> = model<MoveDoc>('Move', MoveSchema)
+const MoveMongooseModel: Model<MoveDoc> =
+  (mongoose.models.Move as Model<MoveDoc>) || mongoose.model<MoveDoc>('Move', MoveSchema)
 
 export class MoveModel extends BaseModel<MoveDoc, MoveCreateInput> {
   constructor() {

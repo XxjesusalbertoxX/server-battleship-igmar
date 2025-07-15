@@ -1,8 +1,9 @@
 import { GameModel, GameDoc } from '../models/game.js'
-import { PlayerGameModel } from '../models/player_game.js'
+import { PlayerGameModel, PlayerGameDoc } from '../models/player_game.js'
 import { MoveModel } from '../models/battleship_move.js'
 import User from '../models/user.js'
 import { Types } from 'mongoose'
+import { toObjectId } from '../utils/utils.js'
 
 export interface PlayerGameCreateInput {
   userId: number
@@ -25,6 +26,17 @@ export default class GameService {
   private gameModel = new GameModel()
   private playerGameModel = new PlayerGameModel()
   private moveModel = new MoveModel()
+
+  //metodos auxiliares
+  async findByCode(code: string) {
+    return this.gameModel.find_by_code(code)
+  }
+
+  async findById(id: string) {
+    return this.gameModel.find_by_id(id)
+  }
+
+  //metodos de logica de negocio
 
   async joinGame(userId: number, code: string) {
     const game = await this.gameModel.find_one({ code, status: 'waiting' })
@@ -93,6 +105,7 @@ export default class GameService {
       status: 'waiting',
       hasStarted: false,
       currentTurnUserId: null,
+      surrenderedBy: [],
     })
 
     const playerGamesData = userIds.map((userId) => ({
@@ -131,6 +144,7 @@ export default class GameService {
       status: 'waiting',
       hasStarted: false,
       currentTurnUserId: null,
+      surrenderedBy: [],
       ...(customColors ? { customColors } : {}),
     })
 
@@ -155,6 +169,26 @@ export default class GameService {
   public async startGame(gameId: string, userId: number) {
     const game = await this.gameModel.find_by_id(gameId)
     if (!game) throw new Error('Juego no encontrado')
+
+    if (game.status !== 'started') {
+      throw new Error('La partida ya fue iniciada o finalizada')
+    }
+
+    if (!game.players || game.players.length < 2) {
+      throw new Error('No hay suficientes jugadores para iniciar la partida')
+    }
+
+    const playerGames = await this.playerGameModel.find_many({ gameId: toObjectId(gameId) })
+
+    const userInGame = playerGames.some((pg) => pg.userId === userId)
+    if (!userInGame) {
+      throw new Error('No perteneces a esta partida')
+    }
+
+    const allReady = playerGames.every((pg) => pg.ready)
+    if (!allReady) {
+      throw new Error('No todos los jugadores están listos')
+    }
 
     if (game.gameType === 'battleship') {
       return this.startBattleshipGame(game, userId)
@@ -315,6 +349,15 @@ export default class GameService {
       throw new Error('La partida no ha comenzado')
     }
 
+    if (!game.players || game.players.length === 0) {
+      throw new Error('La partida no tiene jugadores')
+    }
+
+    const playerGames = await this.playerGameModel.find_many({ gameId: toObjectId(gameId) })
+
+    const userInGame = playerGames.some((pg) => pg.userId === userId)
+    if (!userInGame) throw new Error('No perteneces a esta partida')
+
     if (game.gameType === 'battleship') {
       return this.getBattleshipGameStatus(game, userId)
     } else if (game.gameType === 'simonsay') {
@@ -325,28 +368,52 @@ export default class GameService {
   }
 
   private async getBattleshipGameStatus(game: GameDoc, userId: number) {
+    // Obtener todos los playerGame docs
     const playerDocs = await Promise.all(
-      game.players.map((pId: any) => this.playerGameModel.find_by_id(pId.toString()))
+      game.players.map(async (pId: any) => {
+        try {
+          return await this.playerGameModel.find_by_id(pId.toString())
+        } catch {
+          return null
+        }
+      })
     )
 
-    const players = playerDocs.filter(Boolean)
-    const me = players.find((p) => p!.userId === userId)
-    const opponent = players.find((p) => p!.userId !== userId)
+    const players = playerDocs.filter(Boolean) as PlayerGameDoc[]
+    const me = players.find((p) => p.userId === userId)!
+    const opponent = players.find((p) => p.userId !== userId)!
 
-    if (!me) throw new Error('No perteneces a esta partida')
-    if (!opponent) throw new Error('No hay oponente en la partida')
+    if (!me || !opponent) {
+      throw new Error('No perteneces a esta partida o no hay oponente')
+    }
+
+    if (game.status === 'finished') {
+      const winnerPg = players.find((p) => p.result === 'win')!
+      const loserPg = players.find((p) => p.result === 'lose')!
+
+      const winnerUser = await User.find(winnerPg.userId)
+      const loserUser = await User.find(loserPg.userId)
+
+      return {
+        status: 'finished',
+        winnerName: winnerUser?.name || 'Desconocido',
+        loserName: loserUser?.name || 'Desconocido',
+        myBoard: Array.isArray(me.board) ? me.board : [],
+        enemyBoard: Array.isArray(opponent.board) ? opponent.board : [],
+      }
+    }
 
     return {
       status: game.status,
       currentTurnUserId: game.currentTurnUserId,
       players: players.map((p) => ({
-        userId: p!.userId,
-        ready: p!.ready,
-        shipsLost: p!.shipsLost,
-        shipsSunk: p!.shipsSunk,
+        userId: p.userId,
+        ready: p.ready,
+        shipsLost: p.shipsLost,
+        shipsSunk: p.shipsSunk,
       })),
-      myBoard: Array.isArray(me!.board) ? me!.board : [],
-      enemyBoard: this.maskEnemyBoard(Array.isArray(opponent!.board) ? opponent!.board : []),
+      myBoard: Array.isArray(me.board) ? me.board : [],
+      enemyBoard: this.maskEnemyBoard(Array.isArray(opponent.board) ? opponent.board : []),
     }
   }
 
@@ -378,6 +445,15 @@ export default class GameService {
   public async getLobbyStatus(gameId: string, userId: number) {
     const game = await this.gameModel.find_by_id(gameId)
     if (!game) throw new Error('Partida no encontrada')
+
+    if (!game.players || game.players.length === 0) {
+      throw new Error('La partida no tiene jugadores asignados')
+    }
+
+    const playerGames = await this.playerGameModel.find_many({ gameId: toObjectId(gameId) })
+
+    const userInGame = playerGames.some((pg) => pg.userId === userId)
+    if (!userInGame) throw new Error('No perteneces a esta partida')
 
     if (game.gameType === 'battleship') {
       return this.getBattleshipLobbyStatus(game, userId)
@@ -484,5 +560,129 @@ export default class GameService {
       ...game.toObject(),
       players: playerDocs,
     }
+  }
+
+  public async setColors(gameId: string, userId: number, colors?: string[]) {
+    const game = await this.gameModel.find_by_id(gameId)
+    if (!game) throw new Error('Juego no encontrado')
+
+    if (game.gameType !== 'simonsay') throw new Error('Solo aplica para Simon Says')
+
+    // Validación: colores
+    const finalColors =
+      colors && colors.length === 6
+        ? colors
+        : ['#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF'] // Defaults
+
+    game.customColors = finalColors
+    await this.gameModel.update_by_id(gameId, game)
+
+    // También puedes actualizar playerGames si quieres mantener referencia directa:
+    const playerGames = await Promise.all(
+      game.players.map((pId) => this.playerGameModel.find_by_id(pId.toString()))
+    )
+
+    if (!playerGames) throw new Error('Player game not found')
+
+    await Promise.all(
+      playerGames
+        .filter((pg): pg is NonNullable<typeof pg> => pg !== null)
+        .map((pg) => {
+          pg.customColors = finalColors
+          return this.playerGameModel.update_by_id(pg._id.toString(), pg)
+        })
+    )
+
+    return { customColors: finalColors }
+  }
+
+  public async playMove(gameId: string, userId: number, chosenColor: string) {
+    const game = await this.gameModel.find_by_id(gameId)
+    if (!game) throw new Error('Juego no encontrado')
+    if (game.gameType !== 'simonsay') throw new Error('Solo aplica para Simon Says')
+    if (game.status !== 'in_progress') throw new Error('El juego no está en progreso')
+
+    if (game.currentTurnUserId !== userId) {
+      throw new Error('No es tu turno')
+    }
+
+    const sequence = game.sequence ?? []
+    const expectedColor = sequence[sequence.length - 1]
+
+    if (chosenColor !== expectedColor) {
+      // Falló, declaramos ganador al otro
+      const opponentPlayer = await this.getOpponentPlayer(userId, game)
+      const opponentId = opponentPlayer.userId
+      game.status = 'finished'
+      game.winner = opponentId
+      game.currentTurnUserId = null
+
+      await this.gameModel.update_by_id(gameId, game)
+      return { success: false, winner: opponentId }
+    }
+
+    // Acierta → generar nuevo color, cambiar turno
+    const newColor = this.getRandomColor(game.customColors!)
+    game.sequence!.push(newColor)
+
+    const opponentPlayer = await this.getOpponentPlayer(userId, game)
+    const opponentId = opponentPlayer.userId
+    game.currentTurnUserId = opponentId
+    game.lastChosenColor = chosenColor
+
+    await this.gameModel.update_by_id(gameId, game)
+
+    return {
+      success: true,
+      sequence: game.sequence,
+      lastChosenColor: chosenColor,
+    }
+  }
+
+  private getRandomColor(colors: string[]) {
+    return colors[Math.floor(Math.random() * colors.length)]
+  }
+
+  private async getOpponentPlayer(userId: number, game: GameDoc) {
+    const playerGames = await Promise.all(
+      game.players.map((pId) => this.playerGameModel.find_by_id(pId.toString()))
+    )
+    const opponent = playerGames.find((pg) => pg?.userId !== userId)
+    if (!opponent) throw new Error('No se encontró oponente')
+    return opponent
+  }
+
+  public async requestRematch(gameId: string, playerGameId: string) {
+    const game = await this.gameModel.find_by_id(gameId)
+    if (!game) throw new Error('Juego no encontrado')
+
+    if (game.status !== 'finished') {
+      throw new Error('Solo se puede solicitar revancha cuando la partida ha finalizado')
+    }
+
+    const playerGame = await this.playerGameModel.find_by_id(playerGameId)
+    if (!playerGame) throw new Error('Jugador no encontrado')
+
+    if (playerGame.gameId.toString() !== gameId) {
+      throw new Error('El jugador no pertenece a esta partida')
+    }
+
+    if (!game.rematchRequestedBy) {
+      game.rematchRequestedBy = []
+    }
+
+    const alreadyRequested = game.rematchRequestedBy.some((id) => id.toString() === playerGameId)
+
+    if (!alreadyRequested) {
+      game.rematchRequestedBy.push(new Types.ObjectId(playerGameId))
+      await this.gameModel.update_by_id(gameId, { rematchRequestedBy: game.rematchRequestedBy })
+    }
+
+    const allPlayerIds = game.players.map((id) => id.toString())
+    const rematchIds = game.rematchRequestedBy.map((id) => id.toString())
+
+    const bothAccepted = allPlayerIds.every((id) => rematchIds.includes(id))
+
+    return { rematchAcceptedBy: rematchIds, bothAccepted }
   }
 }

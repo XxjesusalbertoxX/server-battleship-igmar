@@ -15,6 +15,7 @@ export interface GameDoc extends Document {
   lastChosenColor?: string
   winner?: number | null
   rematchRequestedBy?: Types.ObjectId[]
+  surrenderedBy?: Types.ObjectId[]
   createdAt?: Date
   updatedAt?: Date
 }
@@ -31,6 +32,7 @@ export interface GameCreateInput {
   sequence?: string[]
   winner?: number | null
   rematchRequestedBy?: Types.ObjectId[]
+  surrenderedBy?: Types.ObjectId[]
 }
 
 const GameSchema = new Schema<GameDoc>(
@@ -50,6 +52,7 @@ const GameSchema = new Schema<GameDoc>(
     lastChosenColor: { type: String, default: undefined },
     winner: { type: Number, default: null },
     rematchRequestedBy: [{ type: Schema.Types.ObjectId, ref: 'PlayerGame' }],
+    surrenderedBy: [{ type: Schema.Types.ObjectId, ref: 'PlayerGame' }],
   },
   { timestamps: true }
 )
