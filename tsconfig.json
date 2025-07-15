@@ -8,5 +8,6 @@
     "rootDir": "./",
     "outDir": "./build"
   },
-  "include": ["start/**/*.ts", "app/**/*.ts", "../../../../../server/app/types/**/*.d.ts"]
+  "include": ["start/**/*.ts", "app/**/*.ts", "../../../../../server/app/types/**/*.d.ts",   "bin"
+]
 }
