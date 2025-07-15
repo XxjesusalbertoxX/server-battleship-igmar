@@ -2,7 +2,6 @@ import { GameModel } from '../models/game.js'
 import { PlayerGameModel } from '../models/player_game.js'
 import { MoveModel } from '../models/battleship_move.js'
 import User from '../models/user.js'
-import Board from '@/Components/Board.vue'
 
 export interface PlayerGameCreateInput {
   userId: number

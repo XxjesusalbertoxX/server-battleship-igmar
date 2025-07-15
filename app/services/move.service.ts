@@ -11,7 +11,7 @@ export default class MoveService {
     const game = await this.gameModel.find_by_player_game_id(playerGameId)
     if (!game) throw new Error('Partida no encontrada')
 
-    if (game.gameTypeId === 1) {
+    if (game.gameType === 'battleship') {
       // Battleship
       return this.battleshipMoveModel.create({
         playerGameId,
@@ -19,7 +19,7 @@ export default class MoveService {
         y: moveData.y,
         hit: moveData.hit,
       })
-    } else if (game.gameTypeId === 2) {
+    } else if (game.gameType === 'simonsay') {
       // Simon Dice
       return this.simonDiceMoveModel.create({
         playerGameId,
@@ -34,9 +34,9 @@ export default class MoveService {
     const game = await this.gameModel.find_by_player_game_id(playerGameId)
     if (!game) throw new Error('Partida no encontrada')
 
-    if (game.gameTypeId === 1) {
+    if (game.gameType === 'battleship') {
       return this.battleshipMoveModel.find_all({ playerGameId })
-    } else if (game.gameTypeId === 2) {
+    } else if (game.gameType === 'simonsay') {
       return this.simonDiceMoveModel.find_all({ playerGameId })
     } else {
       throw new Error('Tipo de juego no soportado')
