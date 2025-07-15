@@ -13,4 +13,4 @@ COPY --from=build /app/build ./build
 COPY package*.json ./
 RUN npm ci --omit=dev
 EXPOSE 3333
-CMD ["node", "build/server.js"]
+CMD ["node", "build/ace.js"]
