@@ -1,7 +1,7 @@
 import mongoose, { Schema, model, Document, Model, Types } from 'mongoose'
 import { BaseModel } from './base_model.js'
 
-// Documento completo con todos los campos
+// Documento completo con todos los campos para PlayerGame
 export interface PlayerGameDoc extends Document {
   _id: Types.ObjectId
   userId: number
@@ -13,6 +13,7 @@ export interface PlayerGameDoc extends Document {
   lastSeenAt?: Date | null
   ready: boolean
   customColors?: string[]
+  rematchAccepted: boolean
   createdAt?: Date
   updatedAt?: Date
 }
@@ -28,6 +29,7 @@ export interface PlayerGameCreateInput {
   lastSeenAt?: Date | null
   ready?: boolean
   customColors?: string[]
+  rematchAccepted?: boolean
 }
 
 const PlayerGameSchema = new Schema<PlayerGameDoc>(
@@ -41,6 +43,7 @@ const PlayerGameSchema = new Schema<PlayerGameDoc>(
     lastSeenAt: { type: Date, default: null },
     ready: { type: Boolean, default: false },
     customColors: { type: [String], default: undefined },
+    rematchAccepted: { type: Boolean, default: false },
   },
   { timestamps: true }
 )
@@ -48,7 +51,6 @@ const PlayerGameSchema = new Schema<PlayerGameDoc>(
 const PlayerGameMongooseModel: Model<PlayerGameDoc> =
   mongoose.models.PlayerGame || model<PlayerGameDoc>('PlayerGame', PlayerGameSchema)
 
-// Ahora usando los dos tipos
 export class PlayerGameModel extends BaseModel<PlayerGameDoc, PlayerGameCreateInput> {
   constructor() {
     super(PlayerGameMongooseModel)

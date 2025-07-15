@@ -1,4 +1,4 @@
-import { Schema, model, Document, Model, Types } from 'mongoose'
+import mongoose, { Schema, model, Document, Model, Types } from 'mongoose'
 import { BaseModel } from './base_model.js'
 
 // Documento completo
@@ -11,6 +11,10 @@ export interface GameDoc extends Document {
   gameType: 'simonsay' | 'battleship'
   players: Types.ObjectId[]
   customColors?: string[]
+  sequence?: string[]
+  lastChosenColor?: string
+  winner?: number | null
+  rematchRequestedBy?: Types.ObjectId[]
   createdAt?: Date
   updatedAt?: Date
 }
@@ -24,6 +28,9 @@ export interface GameCreateInput {
   gameType: 'simonsay' | 'battleship'
   players: Types.ObjectId[]
   customColors?: string[]
+  sequence?: string[]
+  winner?: number | null
+  rematchRequestedBy?: Types.ObjectId[]
 }
 
 const GameSchema = new Schema<GameDoc>(
@@ -39,11 +46,15 @@ const GameSchema = new Schema<GameDoc>(
     gameType: { type: String, enum: ['simonsay', 'battleship'], default: 'battleship' },
     players: [{ type: Schema.Types.ObjectId, ref: 'PlayerGame' }],
     customColors: { type: [String], default: undefined },
+    sequence: { type: [String], default: undefined },
+    lastChosenColor: { type: String, default: undefined },
+    winner: { type: Number, default: null },
+    rematchRequestedBy: [{ type: Schema.Types.ObjectId, ref: 'PlayerGame' }],
   },
   { timestamps: true }
 )
 
-const GameMongooseModel: Model<GameDoc> = model<GameDoc>('Game', GameSchema)
+const GameMongooseModel: Model<GameDoc> = mongoose.models.Game || model<GameDoc>('Game', GameSchema)
 
 export class GameModel extends BaseModel<GameDoc, GameCreateInput> {
   constructor() {
