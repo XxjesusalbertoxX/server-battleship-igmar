@@ -37,12 +37,13 @@ export default class GameController {
       const userId = Number(authUser.id)
       const createdGame = await this.gameService.createGame({
         userIds: [userId],
-        gameTypeId: 1, // o como definas el tipo por defecto
+        gameTypeId: 1,
         code: uuidv4().substring(0, 8).toUpperCase(),
       })
 
       return response.created({ id: createdGame.id, code: createdGame.code })
     } catch (error) {
+      console.error('Error en createGame:', error) // <<< imprime stack completo
       return response.internalServerError({ message: error.message })
     }
   }

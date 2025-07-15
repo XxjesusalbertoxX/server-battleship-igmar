@@ -75,8 +75,9 @@ export default class GameService {
   }
 
   async createGame({ userIds, gameTypeId, code, customColors }: CreateGameOptions) {
-    const finalCode = code ?? crypto.randomUUID().substring(0, 8).toUpperCase()
+    const finalCode = code
 
+    console.log(gameTypeId)
     const createdGame = await this.gameModel.create({
       code: finalCode,
       gameTypeId,
@@ -87,6 +88,7 @@ export default class GameService {
       ...(gameTypeId === 2 && customColors ? { customColors } : {}),
     })
 
+    console.log(createdGame)
     const playerGamesData = userIds.map((userId) => ({
       userId,
       gameId: createdGame._id,
@@ -97,7 +99,7 @@ export default class GameService {
       ready: false,
       ...(gameTypeId === 2 && customColors ? { customColors } : {}),
     }))
-
+    console.log(playerGamesData)
     const createdPlayerGames = await Promise.all(
       playerGamesData.map((data) => this.playerGameModel.create(data))
     )
@@ -111,49 +113,42 @@ export default class GameService {
     }
   }
 
-  async startGame(gameId: string, userId: number) {
+  public async startGame(gameId: string, userId: number) {
     const game = await this.gameModel.find_by_id(gameId)
     if (!game) throw new Error('Juego no encontrado')
 
-    // Obtener los jugadores, filtrando null/undefined
     const playersResult = await Promise.all(
-      game.players.map((pId: any) => this.playerGameModel.find_by_id(pId.toString()))
+      game.players.map((pId) => this.playerGameModel.find_by_id(pId.toString()))
     )
-    const players = playersResult.filter((p): p is NonNullable<typeof p> => p !== null)
+    const players = playersResult.filter((p): p is NonNullable<typeof p> => !!p)
 
-    // Asignar tablero si no existe
+    // Generar tableros donde haga falta
     for (const pg of players) {
       if (!pg.board || (Array.isArray(pg.board) && pg.board.length === 0)) {
-        pg.board = this.generateRandomBoard(15) as any // as any para saltar el tema del tipo
+        pg.board = this.generateRandomBoard(15)
         await this.playerGameModel.update_by_id(pg._id.toString(), pg)
       }
     }
 
-    // Asignar turno inicial si no hay uno
+    // Asignar turno inicial y cambiar status
     if (!game.currentTurnUserId) {
-      const randomPlayer = players[Math.floor(Math.random() * players.length)]
+      const randomPlayer = players[Math.floor(Math.random() * players.length)]!
       game.currentTurnUserId = randomPlayer.userId
       game.status = 'in_progress'
-      await this.gameModel.update_by_id(game._id.toString(), game)
+      await this.gameModel.update_by_id(gameId, {
+        status: 'in_progress',
+        currentTurnUserId: game.currentTurnUserId,
+      })
     }
 
-    // Buscar jugador y oponente (asumimos que existen)
-    const myPlayer = players.find((p) => p.userId === userId)!
-    const enemyPlayer = players.find((p) => p.userId !== userId)!
-
-    // Parsear tableros si vienen como JSON string
-    const myBoard = typeof myPlayer.board === 'string' ? JSON.parse(myPlayer.board) : myPlayer.board
-    const enemyBoardRaw =
-      typeof enemyPlayer.board === 'string' ? JSON.parse(enemyPlayer.board) : enemyPlayer.board
-
-    // Aplicar máscara para ocultar posiciones
-    const enemyBoard = this.maskEnemyBoard(enemyBoardRaw)
-
+    // Devolver payload completo
+    const me = players.find((p) => p.userId === userId)!
+    const opponent = players.find((p) => p.userId !== userId)!
     return {
       gameId: game._id.toString(),
       currentTurnUserId: game.currentTurnUserId,
-      myBoard,
-      enemyBoard,
+      myBoard: me.board!,
+      enemyBoard: this.maskEnemyBoard(opponent.board!),
       status: game.status,
     }
   }

@@ -6,16 +6,14 @@ export default class BattleshipsController {
   private playerGameService = new PlayerGameService()
   private gameService = new GameService()
 
+  // Iniciar la partida, asignar tableros y turno inicial
+  // Volvemos a exponer startGame
   public async startGame({ authUser, params, response }: HttpContext) {
     try {
       const userId = Number(authUser.id)
-      const gameId = params.id
-
-      const result = await this.gameService.startGame(gameId, userId)
-
-      return response.ok(result)
+      const payload = await this.gameService.startGame(params.id, userId)
+      return response.ok(payload)
     } catch (error) {
-      console.error('Error iniciando partida:', error)
       return response.internalServerError({ message: error.message })
     }
   }
