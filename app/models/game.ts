@@ -8,7 +8,7 @@ export interface GameDoc extends Document {
   code: string
   hasStarted: boolean
   currentTurnUserId: number | null
-  gameTypeId: number
+  gameType: 'simonsay' | 'battleship'
   players: Types.ObjectId[]
   customColors?: string[]
   createdAt?: Date
@@ -21,7 +21,7 @@ export interface GameCreateInput {
   code: string
   hasStarted?: boolean
   currentTurnUserId?: number | null
-  gameTypeId: number
+  gameType: 'simonsay' | 'battleship'
   players: Types.ObjectId[]
   customColors?: string[]
 }
@@ -36,7 +36,7 @@ const GameSchema = new Schema<GameDoc>(
     code: { type: String, required: true },
     hasStarted: { type: Boolean, default: false },
     currentTurnUserId: { type: Number, default: null },
-    gameTypeId: { type: Number, required: true },
+    gameType: { type: String, enum: ['simonsay', 'battleship'], default: 'battleship' },
     players: [{ type: Schema.Types.ObjectId, ref: 'PlayerGame' }],
     customColors: { type: [String], default: undefined },
   },

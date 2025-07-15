@@ -34,7 +34,7 @@ router
 
 router
   .group(() => {
-    router.post('/create', [GameController, 'createGame'])
+    router.post(':gameType/create', [GameController, 'createGame'])
     router.post('/join', [GameController, 'joinGame'])
     router.get('/:id', [GameController, 'showGame'])
     router.post('/:id/ready', [GameController, 'setReady'])

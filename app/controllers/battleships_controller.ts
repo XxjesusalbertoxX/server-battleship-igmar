@@ -42,11 +42,12 @@ export default class BattleshipsController {
       return response.ok(result)
     } catch (error) {
       if (error.message.includes('turno')) {
-        return response.unauthorized({ error: error.message })
+        return response.unauthorized({ message: error.message })
       }
       if (error.message.includes('Casilla ya atacada')) {
-        return response.unprocessableEntity({ error: error.message })
+        return response.unprocessableEntity({ message: error.message })
       }
+      console.error('Error en attack:', error)
       return response.internalServerError({ message: error.message })
     }
   }

@@ -2,6 +2,7 @@ import { GameModel } from '../models/game.js'
 import { PlayerGameModel } from '../models/player_game.js'
 import { MoveModel } from '../models/battleship_move.js'
 import User from '../models/user.js'
+import Board from '@/Components/Board.vue'
 
 export interface PlayerGameCreateInput {
   userId: number
@@ -15,7 +16,7 @@ export interface PlayerGameCreateInput {
 
 type CreateGameOptions = {
   userIds: number[]
-  gameTypeId: number
+  gameType: 'simonsay' | 'battleship'
   code: string
   customColors?: string[]
 }
@@ -74,30 +75,30 @@ export default class GameService {
     return board
   }
 
-  async createGame({ userIds, gameTypeId, code, customColors }: CreateGameOptions) {
+  async createGame({ userIds, gameType, code, customColors }: CreateGameOptions) {
     const finalCode = code
 
-    console.log(gameTypeId)
+    console.log(gameType)
     const createdGame = await this.gameModel.create({
       code: finalCode,
-      gameTypeId,
+      gameType: gameType,
       players: [],
       status: 'waiting',
       hasStarted: false,
       currentTurnUserId: null,
-      ...(gameTypeId === 2 && customColors ? { customColors } : {}),
+      ...(gameType === 'simonsay' && customColors ? { customColors } : {}),
     })
 
     console.log(createdGame)
     const playerGamesData = userIds.map((userId) => ({
       userId,
       gameId: createdGame._id,
-      board: gameTypeId === 2 ? undefined : [], // Cambié null por []
-      result: gameTypeId === 2 ? undefined : ('pending' as 'pending'),
-      shipsSunk: gameTypeId === 2 ? undefined : 0,
-      shipsLost: gameTypeId === 2 ? undefined : 0,
+      board: gameType === 'simonsay' ? undefined : [], // Cambié null por []
+      result: gameType === 'simonsay' ? undefined : ('pending' as 'pending'),
+      shipsSunk: gameType === 'simonsay' ? undefined : 0,
+      shipsLost: gameType === 'simonsay' ? undefined : 0,
       ready: false,
-      ...(gameTypeId === 2 && customColors ? { customColors } : {}),
+      ...(gameType === 'simonsay' && customColors ? { customColors } : {}),
     }))
     console.log(playerGamesData)
     const createdPlayerGames = await Promise.all(
@@ -158,6 +159,7 @@ export default class GameService {
   }
 
   async attack(userId: number, gameId: string, x: number, y: number) {
+    // 1️⃣ Obtener “me” y “opponent”
     const me: any = await this.playerGameModel.find_one({ userId, gameId })
     if (!me) throw new Error('Jugador no encontrado en la partida')
 
@@ -168,27 +170,44 @@ export default class GameService {
     const opponent: any = await this.playerGameModel.find_by_id(opponentId.toString())
     if (!opponent) throw new Error('Oponente no encontrado')
 
-    const board = opponent.board ? JSON.parse(opponent.board) : []
+    // 2️⃣ Asegurarnos de trabajar siempre con un array 8×8
+    const board: number[][] = Array.isArray(opponent.board)
+      ? opponent.board
+      : opponent.board
+        ? JSON.parse(opponent.board)
+        : Array(8)
+            .fill(0)
+            .map(() => Array(8).fill(0))
+
     if (board[x][y] >= 2) throw new Error('Casilla ya atacada')
 
+    // 3️⃣ Marcar hit o miss
     const wasHit = board[x][y] === 1
-    board[x][y] += 2
-    opponent.board = JSON.stringify(board)
+    board[x][y] += 2 // 0→2 (miss), 1→3 (hit)
 
+    // 4️⃣ Actualizar contadores
     if (wasHit) {
       me.shipsSunk = (me.shipsSunk ?? 0) + 1
       opponent.shipsLost = (opponent.shipsLost ?? 0) + 1
     }
 
+    // 5️⃣ Guardar el move y **el tablero** actualizado
     await this.moveModel.create({ playerGameId: me._id, x, y, hit: wasHit })
+
+    // ▪️ Guardamos tablero como array para simplificar el parseo en getGameStatus
+    opponent.board = board as any
     await this.playerGameModel.update_by_id(opponent._id.toString(), opponent)
     await this.playerGameModel.update_by_id(me._id.toString(), me)
 
+    // 6️⃣ Si no quedan barcos enemigos, declaramos victoria
     if (!board.flat().includes(1)) {
       return this.declareVictory(gameId, me, opponent)
     }
 
-    await this.gameModel.update_by_id(gameId, { currentTurnUserId: opponent.userId })
+    // 7️⃣ Sólo cambiamos el turno si fue “miss”
+    if (!wasHit) {
+      await this.gameModel.update_by_id(gameId, { currentTurnUserId: opponent.userId })
+    }
 
     return { status: wasHit ? 'hit' : 'miss', x, y }
   }
@@ -231,12 +250,12 @@ export default class GameService {
     if (!me) throw new Error('No perteneces a esta partida')
     if (!opponent) throw new Error('No hay oponente en la partida')
 
-    if (['started', 'in_progress'].includes(game.status) && opponent.lastSeenAt) {
-      const inactiveLimit = new Date(Date.now() - 90 * 1000)
-      if (opponent.lastSeenAt < inactiveLimit) {
-        return this.declareVictory(gameId, me, opponent)
-      }
-    }
+    // if (['started', 'in_progress'].includes(game.status) && opponent.lastSeenAt) {
+    //   const inactiveLimit = new Date(Date.now() - 90 * 1000)
+    //   if (opponent.lastSeenAt < inactiveLimit) {
+    //     return this.declareVictory(gameId, me, opponent)
+    //   }
+    // }
 
     return {
       status: game.status,

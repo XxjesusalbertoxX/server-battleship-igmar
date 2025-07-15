@@ -32,12 +32,12 @@ export default class GameController {
   }
 
   // Crear partida e invitar jugadores
-  public async createGame({ authUser, response }: HttpContext) {
+  public async createGame({ authUser, params, response }: HttpContext) {
     try {
       const userId = Number(authUser.id)
       const createdGame = await this.gameService.createGame({
         userIds: [userId],
-        gameTypeId: 1,
+        gameType: params.gameType,
         code: uuidv4().substring(0, 8).toUpperCase(),
       })
 
