@@ -4,7 +4,7 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
-RUN node ace build --production
+RUN node ace build
 
 # Segunda etapa solo con el runtime
 FROM node:20-alpine
