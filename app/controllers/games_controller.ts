@@ -178,9 +178,12 @@ export default class GameController {
   }
 
   // Petición de revancha
-  public async requestRematch({ params, response }: HttpContext) {
+  public async requestRematch({ authUser, params, response }: HttpContext) {
     try {
-      const playerGameId = params.playerGameId
+      const playerGameId = authUser.id
+      if (!playerGameId) {
+        return response.unauthorized({ message: 'No estás autenticado' })
+      }
       const gameId = params.id
       const result = await this.gameService.requestRematch(gameId, playerGameId)
       return response.ok(result)

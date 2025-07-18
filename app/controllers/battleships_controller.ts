@@ -1,8 +1,8 @@
 import { HttpContext } from '@adonisjs/core/http'
-import GameService from '../services/game.service.js'
+import { BattleshipService } from '../services/battleship.service.js'
 
 export default class BattleshipsController {
-  private gameService = new GameService()
+  private battleshipService = new BattleshipService()
 
   // Ataque en Battleship
   public async attack({ authUser, params, response }: HttpContext) {
@@ -19,7 +19,7 @@ export default class BattleshipsController {
         return response.badRequest({ message: 'Fila o columna inválida' })
       }
 
-      const result = await this.gameService.attack(userId, gameId, row, col)
+      const result = await this.battleshipService.attack(userId, gameId, row, col)
       return response.ok(result)
     } catch (error) {
       return response.badRequest({ message: error.message })

@@ -79,8 +79,9 @@ export default class PlayerGameService {
         await this.gameModel.update_by_id(gameId, { surrenderedBy: game.surrenderedBy })
       }
 
-      // Opcional: si solo quedan un jugador activo, podrías finalizar la partida aquí
-      // …
+      // SACAR al jugador de la partida (pero NO borrar PlayerGame)
+      game.players = game.players.filter((pid) => !pid.equals(playerGame._id))
+      await this.gameModel.update_by_id(gameId, { players: game.players })
 
       return { surrendered: true }
     }

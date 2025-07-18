@@ -1,9 +1,9 @@
 import { HttpContext } from '@adonisjs/core/http'
-import GameService from '../services/game.service.js'
 import { schema, rules } from '@adonisjs/validator'
+import { SimonSaysService } from '#services/simon_says.service'
 
 export default class SimonsaysController {
-  private gameService = new GameService()
+  private simonSaysService = new SimonSaysService()
 
   // Establecer colores personalizados
   public async setColors({ authUser, params, request, response }: HttpContext) {
@@ -25,7 +25,7 @@ export default class SimonsaysController {
       const payload = await request.validate({ schema: validationSchema })
       const colors = payload.colors
 
-      const result = await this.gameService.setColors(gameId, userId, colors)
+      const result = await this.simonSaysService.setColors(gameId, userId, colors)
       return response.ok(result)
     } catch (error) {
       // Mejor manejo de errores
@@ -55,7 +55,7 @@ export default class SimonsaysController {
       const payload = await request.validate({ schema: validationSchema })
       const chosenColor = payload.chosenColor
 
-      const result = await this.gameService.playMove(gameId, userId, chosenColor)
+      const result = await this.simonSaysService.playMove(gameId, userId, chosenColor)
       return response.ok(result)
     } catch (error) {
       if (error.messages) {
