@@ -244,6 +244,7 @@ export default class GameService {
 
   public async leaveGame(gameId: string, playerGameId: string) {
     const game = await this.gameModel.find_by_id(gameId)
+    console.log('Leaving game:', gameId, 'PlayerGameId:', playerGameId)
     if (!game) throw new Error('Juego no encontrado')
 
     // Solo permite salir si la partida ya terminó

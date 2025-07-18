@@ -1,6 +1,5 @@
 import { HttpContext } from '@adonisjs/core/http'
 import { StatService } from '../services/stat.service.js'
-import { schema, rules } from '@adonisjs/validator'
 
 export default class StatsController {
   private statService = new StatService()
@@ -19,32 +18,25 @@ export default class StatsController {
     }
   }
 
-  public async getGameDetails({ authUser, params, request, response }: HttpContext) {
+  public async getGameDetails({ authUser, params, response }: HttpContext) {
     try {
       const userId = Number(authUser.id)
       if (Number.isNaN(userId) || userId <= 0) {
         return response.badRequest({ message: 'Usuario inválido' })
       }
 
-      // Validar que gameId existe y es string no vacío
-      const validationSchema = schema.create({
-        id: schema.string({}, [
-          rules.minLength(24),
-          rules.maxLength(24), // ObjectId length
-          rules.regex(/^[0-9a-fA-F]+$/),
-        ]),
-      })
-
-      await request.validate({ schema: validationSchema })
-
+      // Validar que params.id existe y cumple con las reglas
       const gameId = params.id
+      if (!gameId || gameId.length !== 24 || !/^[0-9a-fA-F]+$/.test(gameId)) {
+        return response.badRequest({
+          message: 'El campo id es requerido y debe ser un ObjectId válido',
+        })
+      }
+
       const details = await this.statService.getGameDetails(gameId, userId)
       return response.ok(details)
     } catch (error) {
-      if (error.messages) {
-        return response.badRequest({ errors: error.messages })
-      }
-      return response.notFound({ message: error.message })
+      return response.internalServerError({ message: error.message })
     }
   }
 }

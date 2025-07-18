@@ -180,14 +180,38 @@ export default class GameController {
   // Petición de revancha
   public async requestRematch({ authUser, params, response }: HttpContext) {
     try {
-      const playerGameId = authUser.id
+      const playerGameId = await this.playerGameService.findPlayerInGame(
+        Number(authUser.id),
+        params.id
+      )
       if (!playerGameId) {
         return response.unauthorized({ message: 'No estás autenticado' })
       }
       const gameId = params.id
-      const result = await this.gameService.requestRematch(gameId, playerGameId)
+      const result = await this.gameService.requestRematch(gameId, playerGameId.id)
       return response.ok(result)
     } catch (error) {
+      return response.badRequest({ message: error.message })
+    }
+  }
+
+  public async leaveGame({ authUser, params, response }: HttpContext) {
+    try {
+      const gameId = params.id
+      const playerGameId = await this.playerGameService.findPlayerInGame(
+        Number(authUser.id),
+        gameId
+      )
+      if (!playerGameId) {
+        return response.unauthorized({ message: 'No estás autenticado' })
+      }
+
+      const result = await this.gameService.leaveGame(gameId, playerGameId.id)
+      return response.ok(result)
+    } catch (error) {
+      if (error.message === 'No perteneces a esta partida') {
+        return response.unauthorized({ message: error.message })
+      }
       return response.badRequest({ message: error.message })
     }
   }
