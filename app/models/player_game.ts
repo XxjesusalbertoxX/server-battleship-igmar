@@ -14,6 +14,7 @@ export interface PlayerGameDoc extends Document {
   ready: boolean
   customColors?: string[]
   rematchAccepted: boolean
+  sequence: string[] // Secuencia de colores para el juego Simon Says
   createdAt?: Date
   updatedAt?: Date
 }
@@ -30,6 +31,7 @@ export interface PlayerGameCreateInput {
   ready?: boolean
   customColors?: string[]
   rematchAccepted?: boolean
+  sequence?: string[] // Secuencia de colores para el juego Simon Says
 }
 
 const PlayerGameSchema = new Schema<PlayerGameDoc>(
@@ -44,6 +46,7 @@ const PlayerGameSchema = new Schema<PlayerGameDoc>(
     ready: { type: Boolean, default: false },
     customColors: { type: [String], default: undefined },
     rematchAccepted: { type: Boolean, default: false },
+    sequence: { type: [String], default: [] }, // Nueva secuencia para cada jugador
   },
   { timestamps: true }
 )

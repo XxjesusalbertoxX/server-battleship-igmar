@@ -161,40 +161,53 @@ export class SimonSaysService {
     if (game.gameType !== 'simonsay') throw new Error('Solo aplica para Simon Says')
     if (game.status !== 'in_progress') throw new Error('El juego no está en progreso')
 
+    // Obtener los PlayerGame del jugador actual y del oponente
+    const playerGames = await this.playerGameModel.find_many({ gameId })
+    const currentPlayer = playerGames.find((pg) => pg.userId === userId)
+    const opponentPlayer = playerGames.find((pg) => pg.userId !== userId)
+
+    if (!currentPlayer || !opponentPlayer) {
+      throw new Error('No se encontraron ambos jugadores en la partida')
+    }
+
+    // Validar que sea el turno del jugador actual
     if (game.currentTurnUserId !== userId) {
       throw new Error('No es tu turno')
     }
 
-    const sequence = game.sequence ?? []
-    const expectedColor = sequence[sequence.length - 1]
+    // Validar la secuencia del oponente
+    const opponentSequence = opponentPlayer.sequence || []
+    const expectedColor = opponentSequence[currentPlayer.sequence.length]
 
     if (chosenColor !== expectedColor) {
-      // Falló, declaramos ganador al otro
-      const opponentPlayer = await this.getOpponentPlayer(userId, game)
-      const opponentId = opponentPlayer.userId
+      // Si falla, el oponente gana
       game.status = 'finished'
-      game.winner = opponentId
+      game.winner = opponentPlayer.userId
       game.currentTurnUserId = null
 
       await this.gameModel.update_by_id(gameId, game)
-      return { success: false, winner: opponentId }
+      return { success: false, winner: opponentPlayer.userId }
     }
 
-    // Acierta → generar nuevo color, cambiar turno
-    const newColor = this.getRandomColor(game.customColors!)
-    game.sequence!.push(newColor)
+    // Si acierta, agregar el color a la secuencia del oponente
+    currentPlayer.sequence.push(chosenColor)
+    if (currentPlayer.sequence.length === opponentSequence.length) {
+      // Secuencia completada, agregar un nuevo color a la secuencia del oponente
+      const newColor = this.getRandomColor(opponentPlayer.customColors || [])
+      opponentPlayer.sequence.push(newColor)
 
-    const opponentPlayer = await this.getOpponentPlayer(userId, game)
-    const opponentId = opponentPlayer.userId
-    game.currentTurnUserId = opponentId
-    game.lastChosenColor = chosenColor
+      // Cambiar el turno al oponente
+      game.currentTurnUserId = opponentPlayer.userId
+      await this.playerGameModel.update_by_id(opponentPlayer._id.toString(), opponentPlayer)
+    }
 
+    await this.playerGameModel.update_by_id(currentPlayer._id.toString(), currentPlayer)
     await this.gameModel.update_by_id(gameId, game)
 
     return {
       success: true,
-      sequence: game.sequence,
-      lastChosenColor: chosenColor,
+      sequence: currentPlayer.sequence,
+      nextColor: opponentPlayer.sequence[opponentPlayer.sequence.length - 1],
     }
   }
 
