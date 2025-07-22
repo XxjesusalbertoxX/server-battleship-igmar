@@ -215,4 +215,14 @@ export default class GameController {
       return response.badRequest({ message: error.message })
     }
   }
+
+  public async heartbeat({ params, response }: HttpContext) {
+    try {
+      const gameId = params.id
+      const result = await this.gameService.heartbeat(gameId)
+      return response.ok(result)
+    } catch (error) {
+      return response.internalServerError({ message: error.message })
+    }
+  }
 }

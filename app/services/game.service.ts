@@ -266,4 +266,15 @@ export default class GameService {
 
     return { left: true }
   }
+
+  public async heartbeat(gameId: string) {
+    const game = await this.gameModel.find_by_id(gameId)
+    if (!game) throw new Error('Juego no encontrado')
+
+    // Actualiza el timestamp de la última actividad
+    game.updatedAt = new Date()
+    await this.gameModel.update_by_id(gameId, { updatedAt: game.updatedAt })
+
+    return { message: 'Heartbeat recibido' }
+  }
 }

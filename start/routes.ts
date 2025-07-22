@@ -76,6 +76,7 @@ router
     router.get('/:id/status', [GameController, 'gameStatus'])
     router.post('/:id/rematch', [GameController, 'requestRematch'])
     router.post('/:id/leave', [GameController, 'leaveGame'])
+    router.patch('/:id/heartbeat', [GameController, 'heartbeat'])
   })
   .prefix('/game')
   .middleware(async (ctx, next) => {
