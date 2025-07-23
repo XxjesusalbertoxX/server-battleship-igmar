@@ -111,7 +111,10 @@ export default class GameController {
     try {
       const userId = Number(authUser.id)
       const gameId = params.id
-
+      const game = await this.gameService.findById(gameId)
+      if (!game) {
+        return response.notFound({ message: 'Juego no encontrado' })
+      }
       const result = await this.gameService.startGame(gameId, userId)
       return response.ok(result)
     } catch (error) {

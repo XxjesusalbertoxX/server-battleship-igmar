@@ -12,8 +12,8 @@ export default class BattleshipsController {
       const gameId = params.id
 
       // Validar params.row y params.col
-      const row = Number(params.x)
-      const col = Number(params.y)
+      const row = Number(params.y) // y = fila
+      const col = Number(params.x) // x = columna
 
       if (Number.isNaN(row) || Number.isNaN(col) || row < 0 || row > 7 || col < 0 || col > 7) {
         return response.badRequest({ message: 'Fila o columna inválida' })

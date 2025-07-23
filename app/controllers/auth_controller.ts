@@ -10,6 +10,20 @@ const ACCESS_EXPIRES_IN = '15m'
 const REFRESH_EXPIRES_IN = '7d'
 
 export default class AuthController {
+  public async getUser({ authUser, response }: HttpContext) {
+    const userId = authUser?.id
+    if (!userId) {
+      return response.unauthorized({ message: 'Unauthorized' })
+    }
+
+    const user = await User.find(userId)
+    if (!user) {
+      return response.notFound({ message: 'User not found' })
+    }
+
+    return response.ok({ user })
+  }
+
   public async register({ request, response }: HttpContext) {
     const { name, email, password } = request.only(['name', 'email', 'password'])
     const exists = await User.query().where('email', email).first()

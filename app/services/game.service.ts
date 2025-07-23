@@ -91,6 +91,11 @@ export default class GameService {
     const game = await this.gameModel.find_by_id(gameId)
     if (!game) throw new Error('Juego no encontrado')
 
+    // Si ya está iniciada, devuelve el estado actual (idempotente)
+    if (game.status === 'in_progress') {
+      return { message: 'La partida ya fue iniciada', status: game.status }
+    }
+
     if (game.status !== 'started') {
       throw new Error('La partida ya fue iniciada o finalizada')
     }
@@ -104,6 +109,13 @@ export default class GameService {
     const userInGame = playerGames.some((pg) => pg.userId === userId)
     if (!userInGame) {
       throw new Error('No perteneces a esta partida')
+    }
+
+    // Solo el host puede iniciar la partida
+    const hostPlayerGameId = game.players[0].toString()
+    const hostPlayerGame = playerGames.find((pg) => pg._id.toString() === hostPlayerGameId)
+    if (!hostPlayerGame || hostPlayerGame.userId !== userId) {
+      throw new Error('Solo el host puede iniciar la partida')
     }
 
     const allReady = playerGames.every((pg) => pg.ready)

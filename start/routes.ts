@@ -20,6 +20,7 @@ router.get('/check-email/:email', async ({ params, response }) => {
 
 router
   .group(() => {
+    router.get('/auth/user', (ctx) => new AuthController().getUser(ctx))
     router.get('/people', (ctx) => new PeopleController().index(ctx))
     router.post('/people', (ctx) => new PeopleController().store(ctx))
     router.get('/people/statistics', (ctx) => new PeopleController().statistics(ctx))

@@ -120,8 +120,6 @@ export class BattleshipService {
             .map(() => Array(8).fill(0))
 
     if (board[x][y] >= 2) throw new Error('Casilla ya atacada')
-
-    // 3️⃣ Marcar hit o miss
     const wasHit = board[x][y] === 1
     board[x][y] += 2 // 0→2 (miss), 1→3 (hit)
 
