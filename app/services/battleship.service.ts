@@ -204,11 +204,6 @@ export class BattleshipService {
     }
 
     const users = await Promise.all(players.map((p) => User.find(p.userId)))
-
-    const players = playerDocs.filter(Boolean) as PlayerGameDoc[]
-    const me = players.find((p) => p.userId === userId)!
-    const opponent = players.find((p) => p.userId !== userId)!
-
     if (!me || !opponent) {
       throw new Error('No perteneces a esta partida o no hay oponente')
     }
