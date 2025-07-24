@@ -25,4 +25,32 @@ export default class BattleshipsController {
       return response.badRequest({ message: error.message })
     }
   }
+
+  // Agregar este método al BattleshipsController existente
+  public async surrender({ authUser, params, response }: HttpContext) {
+    try {
+      const userId = Number(authUser.id)
+      const gameId = params.id
+
+      // Llamamos al servicio que ya creaste para renderirse
+      const result = await this.battleshipService.surrenderGame(gameId, userId)
+
+      return response.ok({
+        ...result,
+        message: 'Te has rendido. La victoria ha sido otorgada a tu oponente.',
+      })
+    } catch (error) {
+      if (error.message === 'Juego no encontrado') {
+        return response.notFound({ message: error.message })
+      }
+      if (error.message === 'La partida ya terminó') {
+        return response.conflict({ message: error.message })
+      }
+      if (error.message === 'Jugadores no encontrados') {
+        return response.notFound({ message: error.message })
+      }
+
+      return response.internalServerError({ message: error.message })
+    }
+  }
 }

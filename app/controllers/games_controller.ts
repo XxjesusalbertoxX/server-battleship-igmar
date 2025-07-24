@@ -215,6 +215,7 @@ export default class GameController {
       if (error.message === 'No perteneces a esta partida') {
         return response.unauthorized({ message: error.message })
       }
+      console.log(error.message)
       return response.badRequest({ message: error.message })
     }
   }

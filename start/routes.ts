@@ -88,6 +88,7 @@ router
 router
   .group(() => {
     router.post('/:id/attack/:x/:y', [BattleshipsController, 'attack'])
+    router.post('/:id/surrender', [BattleshipsController, 'surrender']) // Añadir esta línea
   })
   .prefix('/battleship')
   .middleware(async (ctx, next) => {

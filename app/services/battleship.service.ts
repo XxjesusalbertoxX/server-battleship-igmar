@@ -202,14 +202,25 @@ export class BattleshipService {
       }
     }
 
+    const users = await Promise.all(players.map((p) => User.find(p.userId)))
+
     return {
       status: game.status,
       currentTurnUserId: game.currentTurnUserId,
-      players: players.map((p) => ({
+      players: players.map((p, idx) => ({
         userId: p.userId,
         ready: p.ready,
         shipsLost: p.shipsLost,
         shipsSunk: p.shipsSunk,
+        user: users[idx]
+          ? {
+              id: users[idx].id,
+              name: users[idx].name,
+              wins: users[idx].wins,
+              losses: users[idx].losses,
+              level: users[idx].level,
+            }
+          : undefined,
       })),
       myBoard: Array.isArray(me.board) ? me.board : [],
       enemyBoard: this.maskEnemyBoard(Array.isArray(opponent.board) ? opponent.board : []),
@@ -263,5 +274,28 @@ export class BattleshipService {
   private verifyPlayerInGame(playerDocs: any[], userId: number) {
     const me = playerDocs.find((p) => p.userId === userId)
     if (!me) throw new Error('No perteneces a esta partida')
+  }
+
+  async surrenderGame(gameId: string, surrenderingPlayerId: number) {
+    const game = await this.gameModel.find_by_id(gameId)
+    if (!game) throw new Error('Juego no encontrado')
+    if (game.status === 'finished') throw new Error('La partida ya terminó')
+
+    const playerGames = await this.playerGameModel.find_many({ gameId: new Types.ObjectId(gameId) })
+    const loser = playerGames.find((pg) => pg.userId === surrenderingPlayerId)
+    const winner = playerGames.find((pg) => pg.userId !== surrenderingPlayerId)
+
+    if (!loser || !winner) throw new Error('Jugadores no encontrados')
+
+    loser.result = 'lose'
+    winner.result = 'win'
+    await this.playerGameModel.update_by_id(loser._id.toString(), loser)
+    await this.playerGameModel.update_by_id(winner._id.toString(), winner)
+
+    game.status = 'finished'
+    game.currentTurnUserId = null
+    await this.gameModel.update_by_id(gameId, game)
+
+    return { status: 'finished', winner: winner.userId, loser: loser.userId }
   }
 }
