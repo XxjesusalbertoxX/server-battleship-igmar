@@ -204,6 +204,23 @@ export class BattleshipService {
 
     const users = await Promise.all(players.map((p) => User.find(p.userId)))
 
+    // Función auxiliar para contar barcos
+    const countShips = (board: number[][]): number => {
+      let shipCells = 0
+      for (let row of board) {
+        for (let cell of row) {
+          if (cell === 1 || cell === 3) {
+            // 1=barco intacto, 3=barco tocado
+            shipCells++
+          }
+        }
+      }
+      return shipCells
+    }
+
+    const myShipsRemaining = countShips(me.board!)
+    const enemyShipsRemaining = countShips(opponent.board!)
+
     return {
       status: game.status,
       currentTurnUserId: game.currentTurnUserId,
@@ -224,6 +241,8 @@ export class BattleshipService {
       })),
       myBoard: Array.isArray(me.board) ? me.board : [],
       enemyBoard: this.maskEnemyBoard(Array.isArray(opponent.board) ? opponent.board : []),
+      myShipsRemaining,
+      enemyShipsRemaining,
     }
   }
 
