@@ -108,13 +108,11 @@ router
 
 router
   .group(() => {
-    router.get('/battleship', [StatsController, 'getBattleshipStats'])
-    router.get('/battleship/:id', [StatsController, 'getGameDetails'])
+    router.post('/:id/colors', [SimonsaysController, 'setColors'])
+    router.post('/:id/play-sequence', [SimonsaysController, 'playSequence'])
+    router.post('/:id/choose-color', [SimonsaysController, 'chooseColor'])
   })
-  .prefix('/stats')
-  .middleware([
-    async (ctx, next) => {
-      const mw = new AuthJwt()
-      await mw.handle(ctx, next)
-    },
-  ])
+  .prefix('/simonsay')
+  .middleware(async (ctx, next) => {
+    await new AuthJwt().handle(ctx, next)
+  })

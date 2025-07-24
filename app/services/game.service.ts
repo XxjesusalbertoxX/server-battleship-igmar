@@ -4,6 +4,7 @@ import { Types } from 'mongoose'
 import { toObjectId } from '../utils/utils.js'
 import { BattleshipService } from './battleship.service.js'
 import { SimonSaysService } from './simon_says.service.js'
+import { v4 as uuidv4 } from 'uuid'
 import User from '../models/user.js'
 
 export interface PlayerGameCreateInput {
@@ -228,13 +229,6 @@ export default class GameService {
       )
     }
 
-    const playerGame = await this.playerGameModel.find_by_id(playerGameId)
-    if (!playerGame) throw new Error('Jugador no encontrado')
-
-    if (playerGame.gameId.toString() !== gameId) {
-      throw new Error('El jugador no pertenece a esta partida')
-    }
-
     if (!game.rematchRequestedBy) {
       game.rematchRequestedBy = []
     }
@@ -251,9 +245,22 @@ export default class GameService {
 
     const bothAccepted = allPlayerIds.every((id) => rematchIds.includes(id))
 
+    // Si ambos aceptaron, crea una nueva partida con los mismos jugadores
+    if (bothAccepted) {
+      // Obtener los userIds de los PlayerGame originales
+      const playerGames = await this.playerGameModel.find_many({ gameId: toObjectId(gameId) })
+      const userIds = playerGames.map((pg) => pg.userId)
+      const newCode = uuidv4().substring(0, 8).toUpperCase()
+      const createdGame = await this.createGame({
+        userIds,
+        gameType: game.gameType,
+        code: newCode,
+      })
+      return { rematchStarted: true, gameId: createdGame.id }
+    }
+
     return { rematchAcceptedBy: rematchIds, bothAccepted }
   }
-
   public async leaveGame(gameId: string, playerGameId: string) {
     const game = await this.gameModel.find_by_id(gameId)
     console.log('Leaving game:', gameId, 'PlayerGameId:', playerGameId)

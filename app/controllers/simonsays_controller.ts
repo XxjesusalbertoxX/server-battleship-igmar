@@ -5,7 +5,7 @@ import { SimonSaysService } from '#services/simon_says.service'
 export default class SimonsaysController {
   private simonSaysService = new SimonSaysService()
 
-  // Establecer colores personalizados
+  // Establecer colores personalizados en el lobby
   public async setColors({ authUser, params, request, response }: HttpContext) {
     try {
       const userId = Number(authUser.id)
@@ -28,17 +28,47 @@ export default class SimonsaysController {
       const result = await this.simonSaysService.setColors(gameId, userId, colors)
       return response.ok(result)
     } catch (error) {
-      // Mejor manejo de errores
       if (error.messages) {
-        // Errores de validación
         return response.badRequest({ errors: error.messages })
       }
       return response.badRequest({ message: error.message })
     }
   }
 
-  // Turno de Simon Says (playMove)
-  public async play({ authUser, params, request, response }: HttpContext) {
+  // Repetir la secuencia propia
+  public async playSequence({ authUser, params, request, response }: HttpContext) {
+    try {
+      const userId = Number(authUser.id)
+      const gameId = params.id
+
+      // Validar input
+      const validationSchema = schema.create({
+        sequence: schema
+          .array()
+          .members(
+            schema.string({}, [
+              rules.minLength(1),
+              rules.maxLength(20),
+              rules.regex(/^[a-zA-Z0-9#]+$/),
+            ])
+          ),
+      })
+
+      const payload = await request.validate({ schema: validationSchema })
+      const playerSequence = payload.sequence
+
+      const result = await this.simonSaysService.playMove(gameId, userId, playerSequence)
+      return response.ok(result)
+    } catch (error) {
+      if (error.messages) {
+        return response.badRequest({ errors: error.messages })
+      }
+      return response.badRequest({ message: error.message })
+    }
+  }
+
+  // Escoger color para agregar a la secuencia del oponente
+  public async chooseColor({ authUser, params, request, response }: HttpContext) {
     try {
       const userId = Number(authUser.id)
       const gameId = params.id
@@ -55,7 +85,7 @@ export default class SimonsaysController {
       const payload = await request.validate({ schema: validationSchema })
       const chosenColor = payload.chosenColor
 
-      const result = await this.simonSaysService.playMove(gameId, userId, chosenColor)
+      const result = await this.simonSaysService.chooseColor(gameId, userId, chosenColor)
       return response.ok(result)
     } catch (error) {
       if (error.messages) {

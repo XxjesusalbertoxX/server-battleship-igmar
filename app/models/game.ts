@@ -29,7 +29,6 @@ export interface GameCreateInput {
   gameType: 'simonsay' | 'battleship'
   players: Types.ObjectId[]
   customColors?: string[]
-  sequence?: string[]
   winner?: number | null
   rematchRequestedBy?: Types.ObjectId[]
   surrenderedBy?: Types.ObjectId[]
