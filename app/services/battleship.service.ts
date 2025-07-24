@@ -3,6 +3,7 @@ import { PlayerGameModel, PlayerGameDoc } from '../models/player_game.js'
 import { MoveModel } from '../models/battleship_move.js'
 import User from '../models/user.js'
 import { Types } from 'mongoose'
+const TOTAL_SHIPS = 15
 
 export class BattleshipService {
   private gameModel = new GameModel()
@@ -66,7 +67,7 @@ export class BattleshipService {
     // Generar tableros donde haga falta
     for (const pg of players) {
       if (!pg.board || (Array.isArray(pg.board) && pg.board.length === 0)) {
-        pg.board = this.generateRandomBoard(15)
+        pg.board = this.generateRandomBoard(TOTAL_SHIPS)
         await this.playerGameModel.update_by_id(pg._id.toString(), pg)
       }
     }
@@ -204,22 +205,17 @@ export class BattleshipService {
 
     const users = await Promise.all(players.map((p) => User.find(p.userId)))
 
-    // Función auxiliar para contar barcos
-    const countShips = (board: number[][]): number => {
-      let shipCells = 0
-      for (let row of board) {
-        for (let cell of row) {
-          if (cell === 1 || cell === 3) {
-            // 1=barco intacto, 3=barco tocado
-            shipCells++
-          }
-        }
-      }
-      return shipCells
+    const players = playerDocs.filter(Boolean) as PlayerGameDoc[]
+    const me = players.find((p) => p.userId === userId)!
+    const opponent = players.find((p) => p.userId !== userId)!
+
+    if (!me || !opponent) {
+      throw new Error('No perteneces a esta partida o no hay oponente')
     }
 
-    const myShipsRemaining = countShips(me.board!)
-    const enemyShipsRemaining = countShips(opponent.board!)
+    // Obtén los barcos restantes usando shipsLost
+    const myShipsRemaining = TOTAL_SHIPS - (me.shipsLost ?? 0)
+    const enemyShipsRemaining = TOTAL_SHIPS - (opponent.shipsLost ?? 0)
 
     return {
       status: game.status,
