@@ -295,8 +295,9 @@ export class SimonSaysService {
       })),
 
       // Solo información de progreso, NO las secuencias completas
-      myColors: me.customColors || [],
-      opponentColors: opponent.customColors || [],
+      myColors: opponent.customColors || [],
+      myCustomColors: me.customColors || [], // <-- Agrega esto
+      opponentColors: me.customColors || [],
       isMyTurn: game.currentTurnUserId === userId,
       mySequenceLength: (me.sequence || []).length,
       opponentSequenceLength: (opponent.sequence || []).length,
@@ -309,6 +310,10 @@ export class SimonSaysService {
           : (me.currentSequenceIndex || 0) < (me.sequence || []).length
             ? 'repeat_sequence'
             : 'choose_color',
+      opponentName:
+        users[1]?.name === users[0]?.name
+          ? users[0]?.name // fallback si solo hay uno
+          : users.find((u) => u?.id === opponent.userId)?.name || 'Oponente',
     }
   }
 
