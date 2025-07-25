@@ -96,6 +96,7 @@ export class SimonSaysService {
   }
 
   // NUEVO: Escoger el primer color del juego
+  // Cambiar en chooseFirstColor:
   async chooseFirstColor(gameId: string, userId: number, chosenColor: string) {
     const game = await this.gameModel.find_by_id(gameId)
     if (!game) throw new Error('Juego no encontrado')
@@ -111,13 +112,14 @@ export class SimonSaysService {
       throw new Error('No se encontraron ambos jugadores')
     }
 
+    // CAMBIO: Validar que el color esté en los colores del JUGADOR ACTUAL (no oponente)
     if (!currentPlayer.customColors?.includes(chosenColor)) {
       throw new Error('Debes escoger un color de tu paleta')
     }
 
-    // Agregar el primer color a la secuencia del oponente
+    // Agregar el primer color a la secuencia del OPONENTE
     opponent.sequence = [chosenColor]
-    opponent.currentSequenceIndex = 0 // Índice para seguir el progreso
+    opponent.currentSequenceIndex = 0
     await this.playerGameModel.update_by_id(opponent._id.toString(), opponent)
 
     // Ahora es turno del oponente para repetir
@@ -133,7 +135,6 @@ export class SimonSaysService {
       sequenceLength: 1,
     }
   }
-
   // NUEVO: Validar un solo color en la secuencia
   async playColor(gameId: string, userId: number, color: string) {
     const game = await this.gameModel.find_by_id(gameId)

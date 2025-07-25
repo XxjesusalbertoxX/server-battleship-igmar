@@ -4,7 +4,6 @@ import router from '@adonisjs/core/services/router'
 import AuthJwt from '#middleware/auth_jwt_middleware'
 import UserModel from '#models/user'
 const GameController = () => import('#controllers/games_controller')
-const StatsController = () => import('#controllers/stats_controller')
 const SimonsaysController = () => import('#controllers/simonsays_controller')
 const BattleshipsController = () => import('#controllers/battleships_controller')
 
@@ -102,7 +101,6 @@ router
     router.post('/:id/choose-first-color', [SimonsaysController, 'chooseFirstColor']) // NUEVO
     router.post('/:id/play-color', [SimonsaysController, 'playColor']) // NUEVO
     router.post('/:id/choose-color', [SimonsaysController, 'chooseColor'])
-    // Eliminar: router.post('/:id/play-sequence', [SimonsaysController, 'playSequence'])
   })
   .prefix('/simonsay')
   .middleware(async (ctx, next) => {
