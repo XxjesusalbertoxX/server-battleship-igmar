@@ -14,6 +14,7 @@ export interface PlayerGameDoc extends Document {
   ready: boolean
   customColors?: string[]
   rematchAccepted: boolean
+  currentSequenceIndex?: number // NUEVO: Para seguir el progreso en la secuencia
   sequence: string[] // Secuencia de colores para el juego Simon Says
   createdAt?: Date
   updatedAt?: Date
@@ -46,6 +47,7 @@ const PlayerGameSchema = new Schema<PlayerGameDoc>(
     ready: { type: Boolean, default: false },
     customColors: { type: [String], default: undefined },
     rematchAccepted: { type: Boolean, default: false },
+    currentSequenceIndex: { type: Number, default: 0 }, // Nuevo campo para seguir el progreso en la secuencia
     sequence: { type: [String], default: [] }, // Nueva secuencia para cada jugador
   },
   { timestamps: true }

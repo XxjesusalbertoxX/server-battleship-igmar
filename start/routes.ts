@@ -95,12 +95,14 @@ router
     await new AuthJwt().handle(ctx, next)
   })
 
-// Rutas específicas de Simon Says en /simonsays
+// Rutas específicas de Simon Says en /simonsay
 router
   .group(() => {
     router.post('/:id/colors', [SimonsaysController, 'setColors'])
-    router.post('/:id/play-sequence', [SimonsaysController, 'playSequence'])
+    router.post('/:id/choose-first-color', [SimonsaysController, 'chooseFirstColor']) // NUEVO
+    router.post('/:id/play-color', [SimonsaysController, 'playColor']) // NUEVO
     router.post('/:id/choose-color', [SimonsaysController, 'chooseColor'])
+    // Eliminar: router.post('/:id/play-sequence', [SimonsaysController, 'playSequence'])
   })
   .prefix('/simonsay')
   .middleware(async (ctx, next) => {

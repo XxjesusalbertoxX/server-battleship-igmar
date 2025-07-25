@@ -135,7 +135,26 @@ export default class GameService {
     const game = await this.gameModel.find_by_id(gameId)
     if (!game) throw new Error('Juego no encontrado')
 
-    if (!['started', 'in_progress', 'finished'].includes(game.status)) {
+    // Aquí está el problema:
+    // if (!['started', 'in_progress', 'finished'].includes(game.status)) {
+    //   throw new Error('La partida no ha comenzado')
+    // }
+
+    // Solución: Permitir los nuevos estados SOLO para SimonSay
+    const validSimonSayStatuses = [
+      'started',
+      'in_progress',
+      'finished',
+      'waiting_first_color',
+      'repeating_sequence',
+      'choosing_next_color',
+    ]
+    const validBattleshipStatuses = ['started', 'in_progress', 'finished']
+
+    if (
+      (game.gameType === 'simonsay' && !validSimonSayStatuses.includes(game.status)) ||
+      (game.gameType === 'battleship' && !validBattleshipStatuses.includes(game.status))
+    ) {
       throw new Error('La partida no ha comenzado')
     }
 

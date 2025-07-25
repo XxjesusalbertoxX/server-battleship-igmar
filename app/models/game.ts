@@ -4,7 +4,14 @@ import { BaseModel } from './base_model.js'
 // Documento completo
 export interface GameDoc extends Document {
   _id: Types.ObjectId
-  status: 'waiting' | 'started' | 'in_progress' | 'finished'
+  status:
+    | 'waiting'
+    | 'started'
+    | 'in_progress'
+    | 'waiting_first_color'
+    | 'repeating_sequence'
+    | 'choosing_next_color'
+    | 'finished'
   code: string
   hasStarted: boolean
   currentTurnUserId: number | null
@@ -22,7 +29,14 @@ export interface GameDoc extends Document {
 
 // Input solo para crear
 export interface GameCreateInput {
-  status?: 'waiting' | 'started' | 'in_progress' | 'finished'
+  status?:
+    | 'waiting'
+    | 'started'
+    | 'in_progress'
+    | 'waiting_first_color'
+    | 'repeating_sequence'
+    | 'choosing_next_color'
+    | 'finished'
   code: string
   hasStarted?: boolean
   currentTurnUserId?: number | null
@@ -38,7 +52,15 @@ const GameSchema = new Schema<GameDoc>(
   {
     status: {
       type: String,
-      enum: ['waiting', 'started', 'in_progress', 'finished'],
+      enum: [
+        'waiting',
+        'started',
+        'in_progress',
+        'waiting_first_color',
+        'repeating_sequence',
+        'choosing_next_color',
+        'finished',
+      ],
       default: 'waiting',
     },
     code: { type: String, required: true },

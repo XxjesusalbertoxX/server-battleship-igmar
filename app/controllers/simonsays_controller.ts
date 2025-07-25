@@ -17,7 +17,7 @@ export default class SimonsaysController {
           schema.string({}, [
             rules.minLength(1),
             rules.maxLength(20),
-            rules.regex(/^[a-zA-Z0-9#]+$/), // colores hex o nombres alfanuméricos
+            rules.regex(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/), // colores hex válidos
           ])
         ),
       })
@@ -35,34 +35,53 @@ export default class SimonsaysController {
     }
   }
 
-  // Repetir la secuencia propia
-  public async playSequence({ authUser, params, request, response }: HttpContext) {
+  public async chooseFirstColor({ authUser, params, request, response }: HttpContext) {
+    try {
+      const userId = Number(authUser.id)
+      const gameId = params.id
+
+      const validationSchema = schema.create({
+        chosenColor: schema.string({}, [
+          rules.minLength(1),
+          rules.maxLength(20),
+          rules.regex(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/),
+        ]),
+      })
+
+      const payload = await request.validate({ schema: validationSchema })
+      const chosenColor = payload.chosenColor
+
+      const result = await this.simonSaysService.chooseFirstColor(gameId, userId, chosenColor)
+      return response.ok(result)
+    } catch (error) {
+      if (error.messages) {
+        return response.badRequest({ errors: error.messages })
+      }
+      return response.badRequest({ message: error.message })
+    }
+  }
+
+  // NUEVO: Validar un solo color
+  public async playColor({ authUser, params, request, response }: HttpContext) {
     try {
       const userId = Number(authUser.id)
       const gameId = params.id
 
       // Validar input
       const validationSchema = schema.create({
-        sequence: schema
-          .array()
-          .members(
-            schema.string({}, [
-              rules.minLength(1),
-              rules.maxLength(20),
-              rules.regex(/^[a-zA-Z0-9#]+$/),
-            ])
-          ),
+        color: schema.string({}, [
+          rules.minLength(4),
+          rules.maxLength(7),
+          rules.regex(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/), // Solo hex válidos
+        ]),
       })
 
       const payload = await request.validate({ schema: validationSchema })
-      const playerSequence = payload.sequence
+      const color = payload.color
 
-      const result = await this.simonSaysService.playMove(gameId, userId, playerSequence)
+      const result = await this.simonSaysService.playColor(gameId, userId, color)
       return response.ok(result)
     } catch (error) {
-      if (error.messages) {
-        return response.badRequest({ errors: error.messages })
-      }
       return response.badRequest({ message: error.message })
     }
   }
@@ -78,7 +97,7 @@ export default class SimonsaysController {
         chosenColor: schema.string({}, [
           rules.minLength(1),
           rules.maxLength(20),
-          rules.regex(/^[a-zA-Z0-9#]+$/),
+          rules.regex(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/),
         ]),
       })
 
