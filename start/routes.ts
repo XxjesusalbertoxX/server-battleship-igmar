@@ -99,16 +99,6 @@ router
 router
   .group(() => {
     router.post('/:id/colors', [SimonsaysController, 'setColors'])
-    router.post('/:id/play', [SimonsaysController, 'play'])
-  })
-  .prefix('/simonsay')
-  .middleware(async (ctx, next) => {
-    await new AuthJwt().handle(ctx, next)
-  })
-
-router
-  .group(() => {
-    router.post('/:id/colors', [SimonsaysController, 'setColors'])
     router.post('/:id/play-sequence', [SimonsaysController, 'playSequence'])
     router.post('/:id/choose-color', [SimonsaysController, 'chooseColor'])
   })
