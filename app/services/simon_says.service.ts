@@ -333,7 +333,7 @@ export class SimonSaysService {
   }
 
   async getSimonLobbyStatus(game: GameDoc, userId: number) {
-    const defaultColors = ['red', 'blue', 'green', 'yellow', 'purple', 'orange']
+    const defaultColors = ['#FF0000', '#0000FF', '#00FF00', '#FFFF00', '#800080', '#FFA500'];
 
     const playerIds = game.players
     const playerDocs = await this.getPlayerLobbyData(game)
