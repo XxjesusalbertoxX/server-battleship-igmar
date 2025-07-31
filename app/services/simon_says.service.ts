@@ -233,7 +233,7 @@ export class SimonSaysService {
     if (!availableColorsForOpponent.includes(chosenColor)) {
       throw new Error('Debes escoger un color que esté disponible para tu oponente')
     }
-    
+
     // Agregar color a la secuencia del oponente
     const newOpponentSequence = [...(opponent.sequence || []), chosenColor]
     opponent.sequence = newOpponentSequence

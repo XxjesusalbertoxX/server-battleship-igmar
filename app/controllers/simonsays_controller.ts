@@ -28,6 +28,7 @@ export default class SimonsaysController {
       const result = await this.simonSaysService.setColors(gameId, userId, colors)
       return response.ok(result)
     } catch (error) {
+      console.log(error)
       if (error.messages) {
         return response.badRequest({ errors: error.messages })
       }
@@ -54,6 +55,7 @@ export default class SimonsaysController {
       const result = await this.simonSaysService.chooseFirstColor(gameId, userId, chosenColor)
       return response.ok(result)
     } catch (error) {
+      console.log(error)
       if (error.messages) {
         return response.badRequest({ errors: error.messages })
       }
@@ -82,6 +84,7 @@ export default class SimonsaysController {
       const result = await this.simonSaysService.playColor(gameId, userId, color)
       return response.ok(result)
     } catch (error) {
+      console.log(error)
       return response.badRequest({ message: error.message })
     }
   }
@@ -107,6 +110,7 @@ export default class SimonsaysController {
       const result = await this.simonSaysService.chooseColor(gameId, userId, chosenColor)
       return response.ok(result)
     } catch (error) {
+      console.log(error)
       if (error.messages) {
         return response.badRequest({ errors: error.messages })
       }
