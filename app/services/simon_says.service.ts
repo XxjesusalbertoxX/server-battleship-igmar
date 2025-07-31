@@ -120,7 +120,16 @@ export class SimonSaysService {
     // que son los que YO elegí para él en el lobby
     const availableColorsForOpponent = opponent.customColors || []
 
+    console.log(availableColorsForOpponent)
+
+    console.log('DEBUG chooseFirstColor')
+    console.log('userId:', userId)
+    console.log('chosenColor:', chosenColor)
+    console.log('opponent.userId:', opponent.userId)
+    console.log('opponent.customColors:', opponent.customColors)
+
     if (!availableColorsForOpponent.includes(chosenColor)) {
+      console.log('NO MATCH FOUND')
       throw new Error('Debes escoger un color que esté disponible para tu oponente')
     }
 
@@ -228,9 +237,18 @@ export class SimonSaysService {
     //   throw new Error('Debes escoger un color de tu paleta')
     // }
 
-    const availableColorsForOpponent = opponent.customColors || []
+    const availableColorsForOpponent = currentPlayer.customColors || []
+
+    console.log(availableColorsForOpponent)
+
+    console.log('DEBUG chooseFirstColor')
+    console.log('userId:', userId)
+    console.log('chosenColor:', chosenColor)
+    console.log('opponent.userId:', opponent.userId)
+    console.log('opponent.customColors:', currentPlayer.customColors)
 
     if (!availableColorsForOpponent.includes(chosenColor)) {
+      console.log('NO MATCH FOUND')
       throw new Error('Debes escoger un color que esté disponible para tu oponente')
     }
 
@@ -333,7 +351,7 @@ export class SimonSaysService {
   }
 
   async getSimonLobbyStatus(game: GameDoc, userId: number) {
-    const defaultColors = ['#FF0000', '#0000FF', '#00FF00', '#FFFF00', '#800080', '#FFA500'];
+    const defaultColors = ['#FF0000', '#0000FF', '#00FF00', '#FFFF00', '#800080', '#FFA500']
 
     const playerIds = game.players
     const playerDocs = await this.getPlayerLobbyData(game)
