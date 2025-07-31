@@ -118,15 +118,9 @@ export class SimonSaysService {
 
     // Los colores que puedo usar para el oponente son los que están en su tablero
     // que son los que YO elegí para él en el lobby
-    const availableColorsForOpponent = opponent.customColors || []
+    const availableColorsForOpponent = currentPlayer.customColors || []
 
     console.log(availableColorsForOpponent)
-
-    console.log('DEBUG chooseFirstColor')
-    console.log('userId:', userId)
-    console.log('chosenColor:', chosenColor)
-    console.log('opponent.userId:', opponent.userId)
-    console.log('opponent.customColors:', opponent.customColors)
 
     if (!availableColorsForOpponent.includes(chosenColor)) {
       console.log('NO MATCH FOUND')
@@ -240,12 +234,6 @@ export class SimonSaysService {
     const availableColorsForOpponent = currentPlayer.customColors || []
 
     console.log(availableColorsForOpponent)
-
-    console.log('DEBUG chooseFirstColor')
-    console.log('userId:', userId)
-    console.log('chosenColor:', chosenColor)
-    console.log('opponent.userId:', opponent.userId)
-    console.log('opponent.customColors:', currentPlayer.customColors)
 
     if (!availableColorsForOpponent.includes(chosenColor)) {
       console.log('NO MATCH FOUND')
