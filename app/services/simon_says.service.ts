@@ -302,7 +302,6 @@ export class SimonSaysService {
       mySequenceLength: (me.sequence || []).length,
       opponentSequenceLength: (opponent.sequence || []).length,
       myCurrentProgress: me.currentSequenceIndex || 0,
-
       // Información de fase actual
       phase:
         game.status === 'waiting_first_color'
@@ -314,6 +313,9 @@ export class SimonSaysService {
         users[1]?.name === users[0]?.name
           ? users[0]?.name // fallback si solo hay uno
           : users.find((u) => u?.id === opponent.userId)?.name || 'Oponente',
+      lastColorAdded:
+        me.sequence && me.sequence.length > 0 ? me.sequence[me.sequence.length - 1] : null,
+      mySequenceVersion: me.sequence ? me.sequence.length : 0, // Nuevo: versión de la secuencia
     }
   }
 
