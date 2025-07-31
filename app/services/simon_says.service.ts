@@ -112,9 +112,16 @@ export class SimonSaysService {
       throw new Error('No se encontraron ambos jugadores')
     }
 
-    // CAMBIO: Validar que el color esté en los colores del JUGADOR ACTUAL (no oponente)
-    if (!currentPlayer.customColors?.includes(chosenColor)) {
-      throw new Error('Debes escoger un color de tu paleta')
+    // CAMBIO: En lugar de validar contra mis colores actuales,
+    // validar contra los colores que están disponibles para el oponente
+    // (que son los colores que YO elegí originalmente en el lobby)
+
+    // Los colores que puedo usar para el oponente son los que están en su tablero
+    // que son los que YO elegí para él en el lobby
+    const availableColorsForOpponent = opponent.customColors || []
+
+    if (!availableColorsForOpponent.includes(chosenColor)) {
+      throw new Error('Debes escoger un color que esté disponible para tu oponente')
     }
 
     // Agregar el primer color a la secuencia del OPONENTE
@@ -217,10 +224,16 @@ export class SimonSaysService {
       throw new Error('Primero debes completar tu secuencia')
     }
 
-    if (!currentPlayer.customColors?.includes(chosenColor)) {
-      throw new Error('Debes escoger un color de tu paleta')
-    }
+    // if (!currentPlayer.customColors?.includes(chosenColor)) {
+    //   throw new Error('Debes escoger un color de tu paleta')
+    // }
 
+    const availableColorsForOpponent = opponent.customColors || []
+
+    if (!availableColorsForOpponent.includes(chosenColor)) {
+      throw new Error('Debes escoger un color que esté disponible para tu oponente')
+    }
+    
     // Agregar color a la secuencia del oponente
     const newOpponentSequence = [...(opponent.sequence || []), chosenColor]
     opponent.sequence = newOpponentSequence
