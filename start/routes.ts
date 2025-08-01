@@ -6,6 +6,7 @@ import UserModel from '#models/user'
 const GameController = () => import('#controllers/games_controller')
 const SimonsaysController = () => import('#controllers/simonsays_controller')
 const BattleshipsController = () => import('#controllers/battleships_controller')
+const StatsController = () => import('#controllers/stats_controller')
 
 router.post('/register', (ctx) => new AuthController().register(ctx))
 router.post('/login', (ctx) => new AuthController().login(ctx))
@@ -88,6 +89,16 @@ router
     router.post('/:id/attack/:x/:y', [BattleshipsController, 'attack'])
   })
   .prefix('/battleship')
+  .middleware(async (ctx, next) => {
+    await new AuthJwt().handle(ctx, next)
+  })
+
+router
+  .group(() => {
+    router.get('/games', [StatsController, 'getBattleshipStats'])
+    router.get('/game/:id', [StatsController, 'getGameDetails'])
+  })
+  .prefix('/battleship/stats')
   .middleware(async (ctx, next) => {
     await new AuthJwt().handle(ctx, next)
   })
