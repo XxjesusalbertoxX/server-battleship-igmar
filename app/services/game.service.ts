@@ -4,7 +4,6 @@ import { Types } from 'mongoose'
 import { toObjectId } from '../utils/utils.js'
 import { BattleshipService } from './battleship.service.js'
 import { SimonSaysService } from './simon_says.service.js'
-import { v4 as uuidv4 } from 'uuid'
 import User from '../models/user.js'
 
 export interface PlayerGameCreateInput {
@@ -224,85 +223,70 @@ export default class GameService {
     }
   }
 
-  public async requestRematch(gameId: string, playerGameId: string) {
+  public async leaveGame(gameId: string, userId: number) {
     const game = await this.gameModel.find_by_id(gameId)
     if (!game) throw new Error('Juego no encontrado')
 
-    if (game.status !== 'finished') {
-      throw new Error('Solo se puede solicitar revancha cuando la partida ha finalizado')
+    const playerGames = await this.playerGameModel.find_many({ gameId: new Types.ObjectId(gameId) })
+    const leavingPlayer = playerGames.find((pg) => pg.userId === userId)
+    const opponent = playerGames.find((pg) => pg.userId !== userId)
+
+    if (!leavingPlayer) throw new Error('No perteneces a esta partida')
+
+    console.log(`User ${userId} leaving game ${gameId}, status: ${game.status}`)
+
+    // CASO 1: En lobby (waiting/started) - Solo quitar del juego
+    if (['waiting', 'started'].includes(game.status)) {
+      // Quitar del array de players
+      game.players = game.players.filter((id) => id.toString() !== leavingPlayer._id.toString())
+      await this.gameModel.update_by_id(gameId, { players: game.players })
+
+      // Si queda solo 1 jugador, volver el juego a 'waiting'
+      if (game.players.length === 1) {
+        await this.gameModel.update_by_id(gameId, { status: 'waiting' })
+      }
+
+      return { left: true, message: 'Has salido del lobby' }
     }
 
-    // Validar que el jugador sigue en la partida
-    const isPlayerInGame = game.players.some((id) => id.toString() === playerGameId)
-    if (!isPlayerInGame) {
-      throw new Error('Ya no puedes pedir revancha: no estás en la partida')
+    // CASO 2: En progreso - Declarar victoria al oponente
+    if (['in_progress', 'waiting_first_color'].includes(game.status)) {
+      if (!opponent) {
+        // Si no hay oponente, solo terminar el juego
+        game.status = 'finished'
+        await this.gameModel.update_by_id(gameId, game)
+        return { left: true, message: 'Partida terminada' }
+      }
+
+      // Declarar derrota al que se va y victoria al oponente
+      leavingPlayer.result = 'lose'
+      opponent.result = 'win'
+
+      await this.playerGameModel.update_by_id(leavingPlayer._id.toString(), leavingPlayer)
+      await this.playerGameModel.update_by_id(opponent._id.toString(), opponent)
+
+      // Terminar el juego
+      game.status = 'finished'
+      game.winner = opponent.userId
+      game.currentTurnUserId = null
+      await this.gameModel.update_by_id(gameId, game)
+
+      return {
+        left: true,
+        gameOver: true,
+        winner: opponent.userId,
+        message: 'Has abandonado. Victoria para el oponente',
+      }
     }
 
-    // Validar que no haya pasado demasiado tiempo desde que terminó la partida
-    const now = new Date()
-    const finishedAt = game.updatedAt ?? game.createdAt ?? now
-    const MAX_REMATCH_TIME_MS = 2 * 60 * 1000 // 2 minutos
-    if (now.getTime() - finishedAt.getTime() > MAX_REMATCH_TIME_MS) {
-      throw new Error(
-        'Ya no puedes pedir revancha: ha pasado demasiado tiempo desde que terminó la partida'
-      )
+    // CASO 3: Ya terminado - Solo quitar del juego
+    if (game.status === 'finished') {
+      game.players = game.players.filter((id) => id.toString() !== leavingPlayer._id.toString())
+      await this.gameModel.update_by_id(gameId, { players: game.players })
+      return { left: true, message: 'Has salido de la partida terminada' }
     }
 
-    if (!game.rematchRequestedBy) {
-      game.rematchRequestedBy = []
-    }
-
-    const alreadyRequested = game.rematchRequestedBy.some((id) => id.toString() === playerGameId)
-
-    if (!alreadyRequested) {
-      game.rematchRequestedBy.push(new Types.ObjectId(playerGameId))
-      await this.gameModel.update_by_id(gameId, { rematchRequestedBy: game.rematchRequestedBy })
-    }
-
-    const allPlayerIds = game.players.map((id) => id.toString())
-    const rematchIds = game.rematchRequestedBy.map((id) => id.toString())
-
-    const bothAccepted = allPlayerIds.every((id) => rematchIds.includes(id))
-
-    // Si ambos aceptaron, crea una nueva partida con los mismos jugadores
-    if (bothAccepted) {
-      // Obtener los userIds de los PlayerGame originales
-      const playerGames = await this.playerGameModel.find_many({ gameId: toObjectId(gameId) })
-      const userIds = playerGames.map((pg) => pg.userId)
-      const newCode = uuidv4().substring(0, 8).toUpperCase()
-      const createdGame = await this.createGame({
-        userIds,
-        gameType: game.gameType,
-        code: newCode,
-      })
-      return { rematchStarted: true, gameId: createdGame.id }
-    }
-
-    return { rematchAcceptedBy: rematchIds, bothAccepted }
-  }
-  public async leaveGame(gameId: string, playerGameId: string) {
-    const game = await this.gameModel.find_by_id(gameId)
-    console.log('Leaving game:', gameId, 'PlayerGameId:', playerGameId)
-    if (!game) throw new Error('Juego no encontrado')
-
-    // Solo permite salir si la partida ya terminó
-    if (game.status !== 'finished') {
-      throw new Error('Solo puedes salir de la partida cuando ha finalizado')
-    }
-
-    // Verifica que el jugador esté en la partida
-    const isPlayerInGame = game.players.some((id) => id.toString() === playerGameId)
-    if (!isPlayerInGame) {
-      throw new Error('Ya no estás en la partida')
-    }
-
-    // Quita al jugador del array de players
-    game.players = game.players.filter((id) => id.toString() !== playerGameId)
-    await this.gameModel.update_by_id(gameId, { players: game.players })
-
-    // No borres el PlayerGame, así conservas historial
-
-    return { left: true }
+    throw new Error('No puedes salir de la partida en este momento')
   }
 
   public async heartbeat(gameId: string) {

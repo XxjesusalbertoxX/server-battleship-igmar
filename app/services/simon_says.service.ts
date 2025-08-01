@@ -385,6 +385,7 @@ export class SimonSaysService {
         if (!user) throw new Error(`Usuario con id ${player.userId} no encontrado`)
 
         return {
+          _id: player._id.toString(),
           userId: player.userId,
           ready: player.ready,
           customColors: player.customColors || [],

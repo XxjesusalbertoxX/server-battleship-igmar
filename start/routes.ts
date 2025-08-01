@@ -74,7 +74,6 @@ router
     router.post('/:id/ready', [GameController, 'setReady'])
     router.get('/:id/lobby-status', [GameController, 'lobbyStatus'])
     router.get('/:id/status', [GameController, 'gameStatus'])
-    router.post('/:id/rematch', [GameController, 'requestRematch'])
     router.post('/:id/leave', [GameController, 'leaveGame'])
     router.patch('/:id/heartbeat', [GameController, 'heartbeat'])
   })
@@ -87,7 +86,6 @@ router
 router
   .group(() => {
     router.post('/:id/attack/:x/:y', [BattleshipsController, 'attack'])
-    router.post('/:id/surrender', [BattleshipsController, 'surrender']) // Añadir esta línea
   })
   .prefix('/battleship')
   .middleware(async (ctx, next) => {
