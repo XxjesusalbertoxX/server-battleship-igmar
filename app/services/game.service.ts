@@ -4,6 +4,7 @@ import { Types } from 'mongoose'
 import { toObjectId } from '../utils/utils.js'
 import { BattleshipService } from './battleship.service.js'
 import { SimonSaysService } from './simon_says.service.js'
+import UserService from '#services/user.service'
 import User from '../models/user.js'
 
 export interface PlayerGameCreateInput {
@@ -28,6 +29,7 @@ export default class GameService {
   private playerGameModel = new PlayerGameModel()
   private battleshipService: BattleshipService
   private simonSaysService: SimonSaysService
+  private userService = new UserService()
 
   constructor() {
     this.battleshipService = new BattleshipService()
@@ -270,6 +272,13 @@ export default class GameService {
       game.winner = opponent.userId
       game.currentTurnUserId = null
       await this.gameModel.update_by_id(gameId, game)
+
+      try {
+        await this.userService.grantWinExperience(opponent.userId)
+        await this.userService.grantLossExperience(userId)
+      } catch (error) {
+        console.error('Error otorgando experiencia:', error)
+      }
 
       return {
         left: true,

@@ -1,6 +1,7 @@
 import { GameModel, GameDoc } from '../models/game.js'
 import { PlayerGameModel, PlayerGameDoc } from '../models/player_game.js'
 import { MoveModel } from '../models/battleship_move.js'
+import UserService from '#services/user.service'
 import User from '../models/user.js'
 import { Types } from 'mongoose'
 const TOTAL_SHIPS = 15
@@ -8,6 +9,7 @@ const TOTAL_SHIPS = 15
 export class BattleshipService {
   private gameModel = new GameModel()
   private playerGameModel = new PlayerGameModel()
+  private userService = new UserService()
   private moveModel = new MoveModel()
 
   private generateRandomBoard(shipsCount: number): number[][] {
@@ -157,12 +159,22 @@ export class BattleshipService {
 
     const game = await this.gameModel.find_by_id(gameId)
     if (!game) throw new Error('Juego no encontrado')
+
     game.status = 'finished'
     game.currentTurnUserId = null
+    game.winner = winner.userId
 
     await this.playerGameModel.update_by_id(winner._id.toString(), winner)
     await this.playerGameModel.update_by_id(loser._id.toString(), loser)
     await this.gameModel.update_by_id(gameId, game)
+
+    // NUEVO: Otorgar experiencia
+    try {
+      await this.userService.grantWinExperience(winner.userId)
+      await this.userService.grantLossExperience(loser.userId)
+    } catch (error) {
+      console.error('Error otorgando experiencia:', error)
+    }
 
     return { status: 'win', message: '¡Has ganado la partida!' }
   }
@@ -276,6 +288,7 @@ export class BattleshipService {
             wins: user.wins,
             losses: user.losses,
             level: user.level,
+            exp: user.exp,
           },
         }
       })

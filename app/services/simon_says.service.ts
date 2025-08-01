@@ -1,11 +1,13 @@
 import { GameModel, GameDoc } from '../models/game.js'
 import { PlayerGameModel } from '../models/player_game.js'
+import UserService from './user.service.js'
 import User from '../models/user.js'
 import { Types } from 'mongoose'
 
 export class SimonSaysService {
   private gameModel = new GameModel()
   private playerGameModel = new PlayerGameModel()
+  private userService = new UserService()
 
   async createSimonGame({
     userIds,
@@ -309,6 +311,7 @@ export class SimonSaysService {
               wins: users[idx]!.wins,
               losses: users[idx]!.losses,
               level: users[idx]!.level,
+              exp: users[idx]!.exp,
             }
           : undefined,
       })),
@@ -420,6 +423,13 @@ export class SimonSaysService {
     game.winner = winnerId
     game.currentTurnUserId = null
     await this.gameModel.update_by_id(gameId, game)
+
+    try {
+      await this.userService.grantWinExperience(winnerId)
+      await this.userService.grantLossExperience(loserId)
+    } catch (error) {
+      console.error('Error otorgando experiencia:', error)
+    }
 
     return {
       success: false,
