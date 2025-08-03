@@ -1,6 +1,7 @@
 import { Types } from 'mongoose'
-import { PlayerGameModel, PlayerGameDoc } from '../models/player_game.js'
+import { PlayerGameModel } from '#models/player_game'
 import { GameModel } from '#models/game'
+import type { PlayerGameBaseDoc } from '#models/player_game_base'
 
 // Errores específicos para manejo más claro
 class NotFoundError extends Error {
@@ -11,8 +12,9 @@ class NotFoundError extends Error {
 }
 
 export default class PlayerGameService {
-  private playerGameModel = new PlayerGameModel()
-  private gameModel = new GameModel()
+  // CORREGIDO: Usar los nuevos modelos discriminados
+  private playerGameModel = PlayerGameModel.base
+  private gameModel = GameModel.base
   private HEARTBEAT_THRESHOLD_MS = 30 * 1000 // 30 segundos
 
   private toObjectId(id: string) {
@@ -46,7 +48,6 @@ export default class PlayerGameService {
     return true
   }
 
-  // Marca rendición en lugar de eliminar para mantener historial
   // Marca rendición o abandona del lobby
   async surrender(userId: number, gameId: string): Promise<{ surrendered: boolean }> {
     const objId = this.toObjectId(gameId)
@@ -109,7 +110,7 @@ export default class PlayerGameService {
   }
 
   // Útil para buscar y validar existencia del jugador en una partida
-  async findPlayerInGame(userId: number, gameId: Types.ObjectId): Promise<PlayerGameDoc> {
+  async findPlayerInGame(userId: number, gameId: Types.ObjectId): Promise<PlayerGameBaseDoc> {
     const playerGame = await this.playerGameModel.find_one({ userId, gameId })
     if (!playerGame) throw new NotFoundError('Jugador no encontrado en la partida')
     return playerGame

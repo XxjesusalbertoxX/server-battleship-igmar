@@ -3,9 +3,13 @@ import { PlayerGameModel } from '../models/player_game.js'
 import { GameModel } from '../models/game.js'
 import { MoveModel } from '../models/battleship_move.js'
 
+function countShips(board: number[][]): number {
+  return Array.isArray(board) ? board.flat().filter((cell) => cell === 1).length : 0
+}
+
 export class StatService {
-  private playerGameModel = new PlayerGameModel()
-  private gameModel = new GameModel()
+  private playerGameModel = PlayerGameModel.battleship
+  private gameModel = GameModel.battleship
   private moveModel = new MoveModel()
 
   public async getBattleshipStats(userId: number) {
@@ -25,12 +29,15 @@ export class StatService {
         ? await this.playerGameModel.find_by_id(opponentId.toString())
         : null
 
+      const shipsRemaining = countShips(pg.board)
+      const shipsLost = 15 - shipsRemaining // O usa TOTAL_SHIPS si es variable
+
       const summary = {
         gameId: game._id.toString(),
         code: game.code,
         date: game.createdAt,
         shipsSunk: pg.shipsSunk,
-        shipsLost: pg.shipsLost,
+        shipsLost,
         opponentUserId: opponent?.userId || null,
       }
 
@@ -59,13 +66,16 @@ export class StatService {
 
     const moves = await this.moveModel.find_many({ playerGameId: myPlayerGame._id })
 
+    const shipsRemaining = countShips(myPlayerGame.board)
+    const shipsLost = 15 - shipsRemaining // O usa TOTAL_SHIPS si es variable
+
     return {
       gameId: game._id.toString(),
       board: myPlayerGame.board || [],
       opponentBoard: opponentPlayerGame?.board || null,
       result: myPlayerGame.result,
       shipsSunk: myPlayerGame.shipsSunk,
-      shipsLost: myPlayerGame.shipsLost,
+      shipsLost,
       moves,
     }
   }

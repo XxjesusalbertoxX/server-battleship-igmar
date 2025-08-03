@@ -91,6 +91,7 @@ export default class GameController {
 
       return response.ok({ message: 'Listo' })
     } catch (error) {
+      console.error('Error al marcar listo:', error)
       return response.internalServerError({ message: error.message })
     }
   }
@@ -118,6 +119,7 @@ export default class GameController {
       const result = await this.gameService.startGame(gameId, userId)
       return response.ok(result)
     } catch (error) {
+      console.error('Error al iniciar el juego:', error)
       if (error.message === 'No todos los jugadores están listos') {
         return response.conflict({ message: error.message })
       }
@@ -158,6 +160,7 @@ export default class GameController {
       const status = await this.gameService.getGameStatus(gameId, userId)
       return response.ok(status)
     } catch (error) {
+      console.error('Error al obtener el estado del juego:', error)
       if (error.message === 'No perteneces a esta partida') {
         return response.unauthorized({ message: error.message })
       }
@@ -183,15 +186,13 @@ export default class GameController {
   public async leaveGame({ authUser, params, response }: HttpContext) {
     try {
       const gameId = params.id
-      const playerGameId = await this.playerGameService.findPlayerInGame(
-        Number(authUser.id),
-        gameId
-      )
-      if (!playerGameId) {
+      const userId = Number(authUser.id)
+
+      if (!userId) {
         return response.unauthorized({ message: 'No estás autenticado' })
       }
 
-      const result = await this.gameService.leaveGame(gameId, playerGameId.id)
+      const result = await this.gameService.leaveGame(gameId, userId)
       return response.ok(result)
     } catch (error) {
       if (error.message === 'No perteneces a esta partida') {

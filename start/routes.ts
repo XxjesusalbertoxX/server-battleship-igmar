@@ -7,6 +7,7 @@ const GameController = () => import('#controllers/games_controller')
 const SimonsaysController = () => import('#controllers/simonsays_controller')
 const BattleshipsController = () => import('#controllers/battleships_controller')
 const StatsController = () => import('#controllers/stats_controller')
+const LoteriaController = () => import('#controllers/loteria_controller') // <-- AGREGAR
 
 router.post('/register', (ctx) => new AuthController().register(ctx))
 router.post('/login', (ctx) => new AuthController().login(ctx))
@@ -112,6 +113,20 @@ router
     router.post('/:id/choose-color', [SimonsaysController, 'chooseColor'])
   })
   .prefix('/simonsay')
+  .middleware(async (ctx, next) => {
+    await new AuthJwt().handle(ctx, next)
+  })
+
+router
+  .group(() => {
+    router.post('/:id/generate-card', [LoteriaController, 'generateCard'])
+    router.post('/:id/draw-card', [LoteriaController, 'drawCard'])
+    router.post('/:id/reshuffle', [LoteriaController, 'reshuffleCards'])
+    router.post('/:id/process-card', [LoteriaController, 'processCard'])
+    router.post('/:id/place-token', [LoteriaController, 'placeToken'])
+    router.post('/:id/claim-win', [LoteriaController, 'claimWin'])
+  })
+  .prefix('/loteria')
   .middleware(async (ctx, next) => {
     await new AuthJwt().handle(ctx, next)
   })
