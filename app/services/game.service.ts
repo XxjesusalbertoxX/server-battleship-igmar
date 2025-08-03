@@ -1,5 +1,6 @@
 import { GameModel } from '#models/game'
 import { PlayerGameModel } from '#models/player_game'
+import type { GameLoteriaDoc } from '#models/loteria/game_loteria'
 import { Types } from 'mongoose'
 import { toObjectId } from '../utils/utils.js'
 import { BattleshipService } from './battleship.service.js'
@@ -339,6 +340,7 @@ export default class GameService {
     if (progressStatuses.includes(game.status)) {
       // Para lotería con múltiples jugadores
       if (game.gameType === 'loteria') {
+        const loteriaGame = game as unknown as GameLoteriaDoc
         // Marcar al jugador como perdedor y en modo espectador
         leavingPlayer.result = 'lose'
         // Si el modelo de lotería tiene isSpectator, usarlo
@@ -359,7 +361,7 @@ export default class GameService {
         }
 
         // Si quedan jugadores suficientes, continuar
-        if (game.players.length >= game.minPlayers) {
+        if (game.players.length >= loteriaGame.minPlayers) {
           return { left: true, message: 'Has abandonado. El juego continúa.' }
         } else {
           // No hay suficientes jugadores, terminar
