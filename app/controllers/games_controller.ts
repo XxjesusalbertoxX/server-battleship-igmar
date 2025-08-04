@@ -9,14 +9,28 @@ export default class GameController {
   private playerGameService = new PlayerGameService()
 
   // Crear nueva partida
-  public async createGame({ authUser, params, response }: HttpContext) {
+  public async createGame({ authUser, params, response, request }: HttpContext) {
     try {
       const userId = Number(authUser.id)
-      const createdGame = await this.gameService.createGame({
+      let createGameParams: any = {
         userIds: [userId],
         gameType: params.gameType,
         code: uuidv4().substring(0, 8).toUpperCase(),
-      })
+      }
+
+      if (params.gameType === 'loteria') {
+        const { minPlayers, maxPlayers, drawCooldownSeconds } = request.body()
+        if (!minPlayers || !maxPlayers) {
+          return response.badRequest({
+            message: 'minPlayers y maxPlayers son requeridos para lotería',
+          })
+        }
+        createGameParams.minPlayers = minPlayers
+        createGameParams.maxPlayers = maxPlayers
+        createGameParams.drawCooldownSeconds = drawCooldownSeconds || 2 // Valor por defecto
+      }
+
+      const createdGame = await this.gameService.createGame(createGameParams)
       return response.created({ gameId: createdGame.id, code: createdGame.code })
     } catch (error) {
       return response.internalServerError({ message: error.message })
@@ -49,9 +63,21 @@ export default class GameController {
         return response.conflict({ error: 'Ya estás en esta partida' })
       }
 
-      // Validar que no haya más de 2 jugadores
-      if (game.players.length >= 2) {
-        return response.conflict({ error: 'La partida ya tiene 2 jugadores' })
+      // Validación según tipo de juego
+      if (game.gameType === 'loteria') {
+        // Para lotería, validar máximo de jugadores
+        // maxPlayers está en el modelo de lotería, así que haz un cast seguro
+        const maxPlayers = (game as any).maxPlayers ?? 16
+        if (game.players.length >= maxPlayers) {
+          return response.conflict({
+            error: `La partida ya tiene el máximo de ${maxPlayers} jugadores`,
+          })
+        }
+      } else {
+        // Para juegos de 2 jugadores
+        if (game.players.length >= 2) {
+          return response.conflict({ error: 'La partida ya tiene 2 jugadores' })
+        }
       }
 
       // Unir al jugador
@@ -81,6 +107,11 @@ export default class GameController {
       const playerGame = await this.playerGameService.findPlayerInGame(userId, gameId)
       if (!playerGame) {
         return response.unauthorized({ message: 'No perteneces a esta partida' })
+      }
+
+      // Para lotería, el anfitrión NO puede marcarse como ready
+      if (game.gameType === 'loteria' && (playerGame as any).isHost) {
+        return response.conflict({ message: 'El anfitrión no puede marcarse como listo' })
       }
 
       if (playerGame.ready) {

@@ -116,12 +116,13 @@ export default class LoteriaController {
       const gameId = params.id
 
       const validationSchema = schema.create({
-        cellIndex: schema.number([rules.range(0, 15)]),
+        row: schema.number([rules.range(0, 3)]), // 0-3 para matriz 4x4
+        col: schema.number([rules.range(0, 3)]), // 0-3 para matriz 4x4
       })
 
-      const { cellIndex } = await request.validate({ schema: validationSchema })
+      const { row, col } = await request.validate({ schema: validationSchema })
 
-      const result = await this.loteriaService.placeToken(gameId, userId, cellIndex)
+      const result = await this.loteriaService.placeToken(gameId, userId, row, col)
       return response.ok(result)
     } catch (error) {
       console.error('Error al colocar ficha:', error)
@@ -130,20 +131,17 @@ export default class LoteriaController {
         return response.notFound({ message: error.message })
       }
 
-      if (error.message === 'No perteneces a esta partida') {
-        return response.unauthorized({ message: error.message })
-      }
-
       if (
         error.message === 'El juego no está en progreso' ||
+        error.message === 'No perteneces a esta partida' ||
+        error.message === 'El anfitrión no puede colocar fichas' ||
         error.message === 'Estás en modo espectador y no puedes colocar fichas' ||
-        error.message === 'Esta celda ya está marcada' ||
-        error.message === 'La carta en esta posición no coincide con la carta actual'
+        error.message === 'Esta celda ya está marcada'
       ) {
         return response.conflict({ message: error.message })
       }
 
-      if (error.message === 'Índice de celda inválido (0-15)') {
+      if (error.message === 'Coordenadas inválidas (0-3 para fila y columna)') {
         return response.badRequest({ message: error.message })
       }
 
@@ -174,6 +172,41 @@ export default class LoteriaController {
         error.message === 'Estás en modo espectador y no puedes reclamar victoria' ||
         error.message === 'No tienes la carta completa para reclamar victoria'
       ) {
+        return response.conflict({ message: error.message })
+      }
+
+      return response.internalServerError({ message: error.message })
+    }
+  }
+
+  public async kickPlayer({ authUser, params, request, response }: HttpContext) {
+    try {
+      const hostUserId = Number(authUser.id)
+      const gameId = params.id
+
+      const validationSchema = schema.create({
+        kickUserId: schema.number(),
+      })
+
+      const { kickUserId } = await request.validate({ schema: validationSchema })
+
+      const result = await this.loteriaService.kickPlayer(gameId, hostUserId, kickUserId)
+      return response.ok(result)
+    } catch (error) {
+      console.error('Error al expulsar jugador:', error)
+
+      if (error.message === 'Juego no encontrado') {
+        return response.notFound({ message: error.message })
+      }
+
+      if (
+        error.message === 'Solo el anfitrión puede expulsar jugadores' ||
+        error.message === 'Jugador no encontrado o no se puede expulsar'
+      ) {
+        return response.unauthorized({ message: error.message })
+      }
+
+      if (error.message === 'Solo se puede expulsar jugadores en el lobby') {
         return response.conflict({ message: error.message })
       }
 

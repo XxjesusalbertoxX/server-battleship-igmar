@@ -18,11 +18,13 @@ export interface GameLoteriaDoc extends Omit<GameBaseDoc, 'status'> {
   minPlayers: number // Mínimo 4
   maxPlayers: number // Máximo 16
   hostUserId: number // ID del anfitrión
+  drawCooldownSeconds?: number // Tiempo de espera entre jugadas (opcional)
 
   // Estado del juego
   currentCard?: string // Carta actual que sacó el anfitrión
   drawnCards: string[] // Cartas que ya han salido
   availableCards: string[] // Cartas disponibles en la baraja
+  lastDrawAt?: Date // Última vez que se sacó una carta
 
   // Verificación
   playerUnderReview?: number // ID del jugador en revisión
@@ -47,6 +49,8 @@ export interface GameLoteriaCreateInput extends Omit<GameBaseCreateInput, 'statu
   availableCards?: string[]
   playerUnderReview?: number
   reviewStartTime?: Date
+  drawCooldownSeconds?: number // Tiempo de espera entre jugadas (opcional)
+  lastDrawAt?: Date // Última vez que se sacó una carta
 }
 
 // Schema específico para Lotería
@@ -64,6 +68,8 @@ const GameLoteriaSchema = new Schema({
   availableCards: { type: [String], default: [] },
   playerUnderReview: { type: Number, default: null },
   reviewStartTime: { type: Date, default: null },
+  drawCooldownSeconds: { type: Number, default: 2, min: 1, max: 10 },
+  lastDrawAt: { type: Date, default: null },
 })
 
 // LÓGICA ROBUSTA PARA OBTENER/CREAR EL DISCRIMINADOR
@@ -135,11 +141,9 @@ export class GameLoteriaModelClass extends BaseModel<GameLoteriaDoc, GameLoteria
     })
   }
 
-  async reshuffleCards(gameId: string, newCards: string[]) {
+  async reshuffleCards(gameId: string, newAvailableCards: string[]) {
     return this.update_by_id(gameId, {
-      currentCard: undefined,
-      drawnCards: [],
-      availableCards: newCards,
+      availableCards: newAvailableCards, // Solo las cartas que quedan
     })
   }
 

@@ -122,9 +122,9 @@ router
     router.post('/:id/generate-card', [LoteriaController, 'generateCard'])
     router.post('/:id/draw-card', [LoteriaController, 'drawCard'])
     router.post('/:id/reshuffle', [LoteriaController, 'reshuffleCards'])
-    router.post('/:id/process-card', [LoteriaController, 'processCard'])
     router.post('/:id/place-token', [LoteriaController, 'placeToken'])
     router.post('/:id/claim-win', [LoteriaController, 'claimWin'])
+    router.post('/:id/kick-player', [LoteriaController, 'kickPlayer'])
   })
   .prefix('/loteria')
   .middleware(async (ctx, next) => {

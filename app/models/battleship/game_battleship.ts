@@ -40,33 +40,23 @@ function getOrCreateBattleshipGameModel(): Model<GameBattleshipDoc> {
     throw new Error('GameBaseModel no está disponible')
   }
 
-  console.log('GameBaseModel disponible:', !!GameBaseModel)
-  console.log(
-    'Discriminadores de Game disponibles:',
-    Object.keys(GameBaseModel.discriminators || {})
-  )
-
   // 1. Verificar si ya existe en el modelo base
   if (GameBaseModel.discriminators?.battleship) {
-    console.log('Discriminador battleship (Game) encontrado en modelo base')
     return GameBaseModel.discriminators.battleship as Model<GameBattleshipDoc>
   }
 
   // 2. Verificar si existe en mongoose.models
   const baseModel = mongoose.models.Game
   if (baseModel?.discriminators?.battleship) {
-    console.log('Discriminador battleship (Game) encontrado en mongoose.models')
     return baseModel.discriminators.battleship as Model<GameBattleshipDoc>
   }
 
   // 3. Crear el discriminador
   try {
-    console.log('Creando discriminador battleship para Game...')
     const newDiscriminator = GameBaseModel.discriminator<GameBattleshipDoc>(
       'battleship',
       GameBattleshipSchema
     )
-    console.log('Discriminador battleship (Game) creado exitosamente')
     return newDiscriminator
   } catch (error) {
     console.error('Error detallado creando discriminador battleship (Game):', error)

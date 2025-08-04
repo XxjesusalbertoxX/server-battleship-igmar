@@ -67,6 +67,7 @@ type CreateLoteriaGameOptions = {
   code: string
   minPlayers: number
   maxPlayers: number
+  drawCooldownSeconds?: number // NUEVO: Tiempo de espera entre sorteos
 }
 
 export class LoteriaService {
@@ -78,7 +79,13 @@ export class LoteriaService {
   // MÉTODOS DE CREACIÓN DE JUEGO
   // ========================================
 
-  async createLoteriaGame({ userIds, code, minPlayers, maxPlayers }: CreateLoteriaGameOptions) {
+  async createLoteriaGame({
+    userIds,
+    code,
+    minPlayers,
+    maxPlayers,
+    drawCooldownSeconds,
+  }: CreateLoteriaGameOptions) {
     if (userIds.length !== 1) {
       throw new Error('La lotería debe ser creada por un solo usuario (anfitrión)')
     }
@@ -100,26 +107,23 @@ export class LoteriaService {
       minPlayers,
       maxPlayers,
       hostUserId,
+      drawCooldownSeconds: drawCooldownSeconds || 2, // NUEVO
       drawnCards: [],
-      availableCards: [...LOTERIA_CARDS], // Todas las cartas disponibles
+      availableCards: [...LOTERIA_CARDS],
     })
 
-    // Crear el PlayerGame para el anfitrión
-    const hostPlayerGame = await this.playerGameModel.create({
+    // Crear el PlayerGame para el anfitrión (pero NO agregarlo a players)
+    await this.playerGameModel.create({
       userId: hostUserId,
       gameId: game._id,
       gameType: 'loteria',
       result: 'pending',
-      ready: false,
+      ready: true, // Anfitrión siempre está "listo"
       isHost: true,
-      playerCard: [],
-      cardGenerated: false,
+      playerCard: [], // No tiene carta
+      cardGenerated: true, // Marcado como generado para no causar problemas
       isSpectator: false,
     })
-
-    // Agregar al anfitrión a la lista de jugadores
-    game.players.push(hostPlayerGame._id)
-    await this.gameModel.update_by_id(game._id.toString(), { players: game.players })
 
     return game
   }
@@ -181,6 +185,11 @@ export class LoteriaService {
     })
     if (!player) throw new Error('No perteneces a esta partida')
 
+    // El anfitrión NO puede generar carta
+    if (player.isHost) {
+      throw new Error('El anfitrión no puede generar cartas')
+    }
+
     // Generar carta aleatoria de 4x4 (16 cartas únicas)
     const shuffledCards = [...LOTERIA_CARDS].sort(() => Math.random() - 0.5)
     const playerCard = shuffledCards.slice(0, 16)
@@ -203,11 +212,15 @@ export class LoteriaService {
   // ========================================
 
   async getLoteriaLobbyStatus(game: any, userId: number) {
-    const players = await this.playerGameModel.findByGameId(game._id.toString())
-    const users = await Promise.all(players.map((p) => User.find(p.userId)))
+    const allPlayerGames = await this.playerGameModel.findByGameId(game._id.toString())
+    const users = await Promise.all(allPlayerGames.map((p) => User.find(p.userId)))
 
-    const me = players.find((p) => p.userId === userId)
+    const me = allPlayerGames.find((p) => p.userId === userId)
     if (!me) throw new Error('No perteneces a esta partida')
+
+    // Separar anfitrión de jugadores normales
+    const host = allPlayerGames.find((p) => p.isHost)
+    const normalPlayers = allPlayerGames.filter((p) => !p.isHost)
 
     return {
       gameId: game._id.toString(),
@@ -215,30 +228,46 @@ export class LoteriaService {
       status: game.status,
       minPlayers: game.minPlayers,
       maxPlayers: game.maxPlayers,
-      currentPlayers: players.length,
+      currentPlayers: normalPlayers.length, // Solo contar jugadores normales
       isHost: me.isHost,
       myCardGenerated: me.cardGenerated,
       myReady: me.ready,
-      canStart: this.canStartGame(game, players),
-      players: players.map((p, idx) => ({
+      canStart: this.canStartGame(game, normalPlayers), // Solo validar jugadores normales
+      host: host
+        ? {
+            userId: host.userId,
+            user: users.find((u) => u?.id === host.userId)
+              ? {
+                  id: users.find((u) => u?.id === host.userId)!.id,
+                  name: users.find((u) => u?.id === host.userId)!.name,
+                  level: users.find((u) => u?.id === host.userId)!.level,
+                  exp: users.find((u) => u?.id === host.userId)!.exp,
+                }
+              : undefined,
+          }
+        : undefined,
+      players: normalPlayers.map((p) => ({
         userId: p.userId,
         ready: p.ready,
         cardGenerated: p.cardGenerated,
-        isHost: p.isHost,
-        user: users[idx]
+        isHost: false,
+        user: users.find((u) => u?.id === p.userId)
           ? {
-              id: users[idx].id,
-              name: users[idx].name,
-              level: users[idx].level,
-              exp: users[idx].exp,
+              id: users.find((u) => u?.id === p.userId)!.id,
+              name: users.find((u) => u?.id === p.userId)!.name,
+              level: users.find((u) => u?.id === p.userId)!.level,
+              exp: users.find((u) => u?.id === p.userId)!.exp,
             }
           : undefined,
       })),
     }
   }
 
-  private canStartGame(game: any, players: any[]) {
-    return players.length >= game.minPlayers && players.every((p) => p.ready && p.cardGenerated)
+  private canStartGame(game: any, normalPlayers: any[]) {
+    return (
+      normalPlayers.length >= game.minPlayers &&
+      normalPlayers.every((p) => p.ready && p.cardGenerated)
+    )
   }
 
   // ========================================
@@ -246,16 +275,17 @@ export class LoteriaService {
   // ========================================
 
   async startLoteriaGame(game: any, userId: number) {
-    const players = await this.playerGameModel.findByGameId(game._id.toString())
+    const allPlayerGames = await this.playerGameModel.findByGameId(game._id.toString())
+    const normalPlayers = allPlayerGames.filter((p) => !p.isHost)
 
     // Verificar que el usuario sea el anfitrión
-    const host = players.find((p) => p.isHost)
+    const host = allPlayerGames.find((p) => p.isHost)
     if (!host || host.userId !== userId) {
       throw new Error('Solo el anfitrión puede iniciar la partida')
     }
 
-    // Verificar condiciones para iniciar
-    if (!this.canStartGame(game, players)) {
+    // Verificar condiciones para iniciar (solo jugadores normales)
+    if (!this.canStartGame(game, normalPlayers)) {
       throw new Error(
         'No se puede iniciar: faltan jugadores, cartas por generar o jugadores por estar listos'
       )
@@ -277,77 +307,8 @@ export class LoteriaService {
   // MÉTODOS DE JUEGO EN PROGRESO
   // ========================================
 
-  async getLoteriaGameStatus(game: any, userId: number) {
-    const players = await this.playerGameModel.findByGameId(game._id.toString())
-    const me = players.find((p) => p.userId === userId)
-    if (!me) throw new Error('No perteneces a esta partida')
-
-    const users = await Promise.all(players.map((p) => User.find(p.userId)))
-
-    // Estado base para todos los jugadores
-    const baseStatus = {
-      gameId: game._id.toString(),
-      status: game.status,
-      currentCard: game.currentCard,
-      myCard: me.playerCard,
-      myMarkedCells: me.markedCells,
-      myTokensUsed: me.tokensUsed,
-      totalTokens: me.totalTokens,
-      isSpectator: me.isSpectator,
-      isHost: me.isHost,
-      playerUnderReview: game.playerUnderReview,
-      drawnCardsCount: game.drawnCards.length,
-    }
-
-    // Si es anfitrión, información adicional
-    if (me.isHost) {
-      return {
-        ...baseStatus,
-        hostView: {
-          availableCardsCount: game.availableCards.length,
-          drawnCards: game.drawnCards,
-          canDraw: game.availableCards.length > 0 && !game.currentCard,
-          canReshuffle: game.drawnCards.length > 0,
-          playersInfo: players.map((p, idx) => ({
-            userId: p.userId,
-            playerCard: p.playerCard,
-            markedCells: p.markedCells,
-            tokensUsed: p.tokensUsed,
-            isSpectator: p.isSpectator,
-            claimedWin: p.claimedWin,
-            user: users[idx]
-              ? {
-                  id: users[idx].id,
-                  name: users[idx].name,
-                }
-              : undefined,
-          })),
-        },
-      }
-    }
-
-    // Vista normal para jugadores
-    return {
-      ...baseStatus,
-      playersInfo: players
-        .filter((p) => !p.isHost)
-        .map((p, idx) => ({
-          userId: p.userId,
-          tokensUsed: p.tokensUsed,
-          isSpectator: p.isSpectator,
-          claimedWin: p.claimedWin,
-          user: users[idx]
-            ? {
-                id: users[idx].id,
-                name: users[idx].name,
-              }
-            : undefined,
-        })),
-    }
-  }
-
   // ========================================
-  // MÉTODOS DEL ANFITRIÓN
+  // MÉTODOS DEL ANFITRIÓN - CORREGIDOS
   // ========================================
 
   async drawCard(gameId: string, userId: number) {
@@ -366,23 +327,34 @@ export class LoteriaService {
     })
     if (!host) throw new Error('Solo el anfitrión puede sacar cartas')
 
+    // VALIDAR COOLDOWN
+    const now = Date.now()
+    const cooldown = game.drawCooldownSeconds! * 1000
+    if (game.lastDrawAt && now - new Date(game.lastDrawAt).getTime() < cooldown) {
+      const waitSeconds = Math.ceil((cooldown - (now - new Date(game.lastDrawAt).getTime())) / 1000)
+      throw new Error(`Debes esperar ${waitSeconds} segundos para sacar otra carta`)
+    }
+
     if (game.availableCards.length === 0) {
-      throw new Error('No hay cartas disponibles')
+      throw new Error('No hay cartas disponibles en el mazo')
     }
 
-    if (game.currentCard) {
-      throw new Error('Ya hay una carta activa, debe ser procesada primero')
-    }
+    // Sacar la primera carta del mazo
+    const drawnCard = game.availableCards[0]
 
-    // Sacar carta aleatoria
-    const randomIndex = Math.floor(Math.random() * game.availableCards.length)
-    const drawnCard = game.availableCards[randomIndex]
-
-    await this.gameModel.drawCard(gameId, drawnCard)
+    // Actualizar el estado con timestamp
+    await this.gameModel.update_by_id(gameId, {
+      currentCard: drawnCard,
+      drawnCards: [...game.drawnCards, drawnCard],
+      availableCards: game.availableCards.slice(1),
+      lastDrawAt: new Date(), // NUEVO - Guardar timestamp
+    })
 
     return {
       drawnCard,
       message: `Carta sacada: ${drawnCard}`,
+      cardsRemaining: game.availableCards.length - 1,
+      nextCardIn: game.drawCooldownSeconds, // Info para el frontend
     }
   }
 
@@ -398,16 +370,137 @@ export class LoteriaService {
     })
     if (!host) throw new Error('Solo el anfitrión puede rebarajear')
 
-    if (game.drawnCards.length === 0) {
-      throw new Error('No hay cartas para rebarajear')
-    }
+    // REBARAJEAR: solo las cartas que quedan en el mazo (no las que ya salieron)
+    const shuffledAvailableCards = [...game.availableCards].sort(() => Math.random() - 0.5)
 
-    // Rebarajear: devolver todas las cartas sacadas al mazo
-    await this.gameModel.reshuffleCards(gameId, [...LOTERIA_CARDS])
+    await this.gameModel.reshuffleCards(gameId, shuffledAvailableCards)
 
     return {
       message: 'Cartas rebarajeadas exitosamente',
-      availableCards: LOTERIA_CARDS.length,
+      availableCards: shuffledAvailableCards.length, // Cantidad real de cartas disponibles
+      cardsRemaining: shuffledAvailableCards.length,
+    }
+  }
+
+  // ========================================
+  // MÉTODOS DE JUEGO EN PROGRESO - MEJORADOS
+  // ========================================
+
+  async getLoteriaGameStatus(game: any, userId: number) {
+    const players = await this.playerGameModel.findByGameId(game._id.toString())
+    const me = players.find((p) => p.userId === userId)
+    if (!me) throw new Error('No perteneces a esta partida')
+
+    const users = await Promise.all(players.map((p) => User.find(p.userId)))
+
+    // Estado base para todos
+    const baseStatus = {
+      gameId: game._id.toString(),
+      status: game.status,
+      currentCard: game.currentCard, // Última carta sacada (todos la ven)
+      isHost: me.isHost,
+      playerUnderReview: game.playerUnderReview,
+      cardsRemaining: game.availableCards.length, // Solo cantidad, no las cartas
+    }
+
+    // Si el juego terminó, mostrar las cartas restantes (tradicional de lotería)
+    if (game.status === 'finished') {
+      return {
+        ...baseStatus,
+        remainingCards: game.availableCards, // Al final sí se muestran
+        gameOver: true,
+        winner: game.winner,
+        // Solo el anfitrión ve las cartas de todos al final
+        ...(me.isHost && {
+          finalPlayersCards: players
+            .filter((p) => !p.isHost)
+            .map((p, idx) => ({
+              userId: p.userId,
+              playerCard: p.playerCard,
+              markedCells: p.markedCells,
+              tokensUsed: p.tokensUsed,
+              user: users[idx]
+                ? {
+                    id: users[idx].id,
+                    name: users[idx].name,
+                  }
+                : undefined,
+            })),
+        }),
+      }
+    }
+
+    // ========================================
+    // VISTA DEL ANFITRIÓN
+    // ========================================
+    if (me.isHost) {
+      return {
+        ...baseStatus,
+        // Anfitrión NO tiene carta propia
+        // myCard: [],
+        // myMarkedCells: [],
+        // myTokensUsed: 0,
+        // totalTokens: 0,
+
+        hostView: {
+          // PUEDE ver las cartas de todos los jugadores (para validar)
+          playersCards: players
+            .filter((p) => !p.isHost) // Solo jugadores normales
+            .map((p, idx) => ({
+              userId: p.userId,
+              playerCard: p.playerCard, // ✅ VE las cartas de los jugadores
+              markedCells: p.markedCells, // ✅ VE las fichas marcadas
+              tokensUsed: p.tokensUsed,
+              isSpectator: p.isSpectator,
+              claimedWin: p.claimedWin,
+              user: users[idx]
+                ? {
+                    id: users[idx].id,
+                    name: users[idx].name,
+                  }
+                : undefined,
+            })),
+
+          // Control de la partida
+          canDraw: game.availableCards.length > 0,
+          canReshuffle: true,
+
+          // ❌ NO ve las cartas que quedan en el mazo
+          // ❌ NO ve el historial de cartas sacadas
+          // Solo ve la cantidad de cartas restantes
+          cardsInDeck: game.availableCards.length,
+        },
+      }
+    }
+
+    // ========================================
+    // VISTA DE JUGADORES NORMALES
+    // ========================================
+    return {
+      ...baseStatus,
+      // Solo ve SU propia carta
+      myCard: me.playerCard,
+      isSpectator: me.isSpectator,
+      myMarkedCells: me.markedCells,
+      myTokensUsed: me.tokensUsed,
+      totalTokens: me.totalTokens || 16,
+
+      // Solo ve información básica de otros jugadores (sin sus cartas)
+      playersInfo: players
+        .filter((p) => !p.isHost && p.userId !== userId) // Otros jugadores (sin anfitrión)
+        .map((p, idx) => ({
+          userId: p.userId,
+          tokensUsed: p.tokensUsed, // Cuántas fichas han puesto
+          isSpectator: p.isSpectator,
+          claimedWin: p.claimedWin,
+          user: users[idx]
+            ? {
+                id: users[idx].id,
+                name: users[idx].name,
+              }
+            : undefined,
+          // ❌ NO ven las cartas de otros jugadores
+        })),
     }
   }
 
@@ -415,7 +508,7 @@ export class LoteriaService {
   // MÉTODOS DE LOS JUGADORES
   // ========================================
 
-  async placeToken(gameId: string, userId: number, cellIndex: number) {
+  async placeToken(gameId: string, userId: number, row: number, col: number) {
     const game = await this.gameModel.find_by_id(gameId)
     if (!game) throw new Error('Juego no encontrado')
 
@@ -429,37 +522,64 @@ export class LoteriaService {
     })
     if (!player) throw new Error('No perteneces a esta partida')
 
+    if (player.isHost) {
+      throw new Error('El anfitrión no puede colocar fichas')
+    }
     if (player.isSpectator) {
       throw new Error('Estás en modo espectador y no puedes colocar fichas')
     }
 
-    if (cellIndex < 0 || cellIndex > 15) {
-      throw new Error('Índice de celda inválido (0-15)')
+    // Validar coordenadas de la matriz 4x4
+    if (row < 0 || row > 3 || col < 0 || col > 3) {
+      throw new Error('Coordenadas inválidas (0-3 para fila y columna)')
     }
+
+    // Convertir matriz 4x4 a índice lineal para el array
+    const cellIndex = row * 4 + col
 
     if (player.markedCells[cellIndex]) {
       throw new Error('Esta celda ya está marcada')
     }
 
-    // Verificar que la carta en esa posición coincida con la carta actual
-    const cardInCell = player.playerCard[cellIndex]
-    if (cardInCell !== game.currentCard) {
-      throw new Error('La carta en esta posición no coincide con la carta actual')
-    }
-
-    // Marcar la celda
+    // PERMITIR colocar ficha sin validar si la carta ya salió
+    // (La validación se hace al final cuando reclama victoria)
     await this.playerGameModel.markCell(player._id.toString(), cellIndex)
 
     const updatedPlayer = await this.playerGameModel.find_by_id(player._id.toString())
-
     if (!updatedPlayer) {
       throw new Error('Jugador no encontrado después de marcar la celda')
     }
+
     const tokensUsed = updatedPlayer.tokensUsed
 
+    // AUTO CLAIM - Si completó la carta (16 fichas), reclamar automáticamente
+    if (tokensUsed === 16) {
+      // Reclamar victoria automáticamente
+      await this.playerGameModel.claimWin(updatedPlayer._id.toString())
+      await this.gameModel.startReview(gameId, userId)
+
+      // Verificar automáticamente si realmente ganó o hizo trampa
+      const isValid = await this.verifyWin(gameId, userId)
+
+      return {
+        row,
+        col,
+        cellIndex,
+        tokensUsed,
+        autoClaimWin: true,
+        isValid,
+        message: isValid
+          ? '¡Tablero completo! ¡Ganaste la partida!'
+          : 'Tablero completo pero hiciste trampa - modo espectador',
+      }
+    }
+
     return {
+      row,
+      col,
       cellIndex,
       tokensUsed,
+      autoClaimWin: false,
       message: 'Ficha colocada exitosamente',
     }
   }
@@ -522,10 +642,8 @@ export class LoteriaService {
     const allCardsValid = markedCards.every((card) => game.drawnCards.includes(card))
 
     if (allCardsValid && markedCards.length === 16) {
-      // Victoria válida
+      // ✅ VICTORIA VÁLIDA
       await this.playerGameModel.setVerificationResult(player._id.toString(), 'valid')
-
-      // Actualizar resultado del jugador
       await this.playerGameModel.update_by_id(player._id.toString(), { result: 'win' })
 
       // Marcar a todos los demás como perdedores
@@ -538,17 +656,70 @@ export class LoteriaService {
 
       // Terminar el juego
       await this.gameModel.endReview(gameId, true)
-      await this.gameModel.update_by_id(gameId, { winner: userId })
+      await this.gameModel.update_by_id(gameId, {
+        winner: userId,
+        status: 'finished',
+      })
 
       return true
     } else {
-      // Victoria inválida - falta
+      // ❌ VICTORIA INVÁLIDA - TRAMPA/FALTA
       await this.playerGameModel.setVerificationResult(player._id.toString(), 'invalid')
+
+      // BANEAR: Marcar como espectador (no puede hacer más acciones)
+      await this.playerGameModel.update_by_id(player._id.toString(), {
+        isSpectator: true,
+        result: 'lose',
+        claimedWin: false, // Reset claim
+      })
 
       // Continuar el juego
       await this.gameModel.endReview(gameId, false)
 
       return false
+    }
+  }
+
+  async kickPlayer(gameId: string, hostUserId: number, kickUserId: number) {
+    const game = await this.gameModel.find_by_id(gameId)
+    if (!game) throw new Error('Juego no encontrado')
+
+    if (game.status !== 'waiting' && game.status !== 'card_selection') {
+      throw new Error('Solo se puede expulsar jugadores en el lobby')
+    }
+
+    // Verificar que quien expulsa sea el anfitrión
+    const host = await this.playerGameModel.find_one({
+      userId: hostUserId,
+      gameId: game._id,
+      isHost: true,
+    })
+    if (!host) throw new Error('Solo el anfitrión puede expulsar jugadores')
+
+    // Buscar al jugador a expulsar
+    const playerToKick = await this.playerGameModel.find_one({
+      userId: kickUserId,
+      gameId: game._id,
+      isHost: false, // No se puede expulsar al anfitrión
+    })
+    if (!playerToKick) throw new Error('Jugador no encontrado o no se puede expulsar')
+
+    // Quitar del array de players del juego
+    game.players = game.players.filter((id) => id.toString() !== playerToKick._id.toString())
+    await this.gameModel.update_by_id(gameId, { players: game.players })
+
+    // Borrar el PlayerGame
+    await this.playerGameModel.delete_by_id(playerToKick._id.toString())
+
+    // Si no quedan jugadores normales, volver a waiting
+    if (game.players.length === 0) {
+      await this.gameModel.update_by_id(gameId, { status: 'waiting' })
+    }
+
+    return {
+      kicked: true,
+      kickedUserId: kickUserId,
+      message: `Jugador ${kickUserId} expulsado de la partida`,
     }
   }
 

@@ -44,19 +44,16 @@ let PlayerGameBattleshipModel: Model<PlayerGameBattleshipDoc>
 function getOrCreateBattleshipPlayerModel(): Model<PlayerGameBattleshipDoc> {
   // 1. Verificar si ya existe en el modelo base con nombre único
   if (PlayerGameBaseModel.discriminators?.['player-battleship']) {
-    console.log('Discriminador player-battleship encontrado en modelo base')
     return PlayerGameBaseModel.discriminators['player-battleship'] as Model<PlayerGameBattleshipDoc>
   }
 
   // 2. Verificar si existe en mongoose.models
   if (mongoose.models['PlayerGame-player-battleship']) {
-    console.log('Discriminador player-battleship encontrado en mongoose.models')
     return mongoose.models['PlayerGame-player-battleship'] as Model<PlayerGameBattleshipDoc>
   }
 
   // 3. Crear el discriminador con nombre único
   try {
-    console.log('Creando discriminador player-battleship...')
     return PlayerGameBaseModel.discriminator<PlayerGameBattleshipDoc>(
       'player-battleship', // NOMBRE ÚNICO
       PlayerGameBattleshipSchema
@@ -93,9 +90,7 @@ export class PlayerGameBattleshipModelClass extends BaseModel<
   }
 
   async updateBoard(playerId: string, board: number[][]) {
-    console.log(`Actualizando tablero para ${playerId}:`, board) // Debug
     const result = await this.update_by_id(playerId, { board })
-    console.log(`Resultado de actualización:`, result) // Debug
     return result
   }
 
