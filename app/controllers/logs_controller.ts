@@ -7,8 +7,8 @@ export default class LogsController {
       const page = Number(request.input('page', 1))
       const limit = Number(request.input('limit', 10))
 
-      const logs = await LogService.getLogs(page, limit)
-      return response.ok(logs)
+      const result = await LogService.getLogs(page, limit)
+      return response.ok(result)
     } catch (error) {
       console.error('❌ Error al obtener logs:', error)
       return response.internalServerError({ message: 'Error interno del servidor' })

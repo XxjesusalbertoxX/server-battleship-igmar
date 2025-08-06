@@ -12,6 +12,14 @@ export interface LogWithUser {
   timestamp: Date
 }
 
+export interface LogsResponse {
+  data: LogWithUser[]
+  total: number
+  page: number
+  perPage: number
+  lastPage: number
+}
+
 export class LogService {
   static async log(
     userId: number,
@@ -34,20 +42,22 @@ export class LogService {
     }
   }
 
-  static async getLogs(page: number = 1, limit: number = 10): Promise<LogWithUser[]> {
+  static async getLogs(page: number = 1, limit: number = 10): Promise<LogsResponse> {
     try {
-      const logs = await LogModel.find()
-        .sort({ timestamp: -1 })
-        .skip((page - 1) * limit)
-        .limit(limit)
-        .lean()
+      const skip = (page - 1) * limit
+
+      // Obtener total de documentos
+      const total = await LogModel.countDocuments()
+
+      // Obtener logs paginados
+      const logs = await LogModel.find().sort({ timestamp: -1 }).skip(skip).limit(limit).lean()
 
       // Obtener información de usuarios
       const userIds = [...new Set(logs.map((log) => log.user_id))]
       const users = await User.query().whereIn('id', userIds)
       const userMap = new Map(users.map((user) => [user.id, user.name]))
 
-      return logs.map((log) => ({
+      const data = logs.map((log) => ({
         id: log._id.toString(),
         user_id: log.user_id,
         user_name: userMap.get(log.user_id) || 'Usuario desconocido',
@@ -57,9 +67,25 @@ export class LogService {
         metadata: log.metadata,
         timestamp: log.timestamp,
       }))
+
+      const lastPage = Math.ceil(total / limit)
+
+      return {
+        data,
+        total,
+        page,
+        perPage: limit,
+        lastPage,
+      }
     } catch (error) {
       console.error('[LogService] Error al obtener logs:', error)
-      return []
+      return {
+        data: [],
+        total: 0,
+        page: 1,
+        perPage: limit,
+        lastPage: 1,
+      }
     }
   }
 
