@@ -25,7 +25,6 @@ export default class StatsController {
         return response.badRequest({ message: 'Usuario inválido' })
       }
 
-      // Validar que params.id existe y cumple con las reglas
       const gameId = params.id
       if (!gameId || gameId.length !== 24 || !/^[0-9a-fA-F]+$/.test(gameId)) {
         return response.badRequest({

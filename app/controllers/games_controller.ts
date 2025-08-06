@@ -74,7 +74,6 @@ export default class GameController {
           })
         }
       } else {
-        // Para juegos de 2 jugadores
         if (game.players.length >= 2) {
           return response.conflict({ error: 'La partida ya tiene 2 jugadores' })
         }

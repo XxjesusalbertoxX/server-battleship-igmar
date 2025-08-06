@@ -5,21 +5,21 @@ import { SimonSaysService } from '#services/simon_says.service'
 export default class SimonsaysController {
   private simonSaysService = new SimonSaysService()
 
-  // Establecer colores personalizados en el lobby
   public async setColors({ authUser, params, request, response }: HttpContext) {
     try {
       const userId = Number(authUser.id)
       const gameId = params.id
 
-      // Validar input
       const validationSchema = schema.create({
-        colors: schema.array().members(
-          schema.string({}, [
-            rules.minLength(1),
-            rules.maxLength(20),
-            rules.regex(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/), // colores hex válidos
-          ])
-        ),
+        colors: schema
+          .array()
+          .members(
+            schema.string({}, [
+              rules.minLength(1),
+              rules.maxLength(20),
+              rules.regex(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/),
+            ])
+          ),
       })
 
       const payload = await request.validate({ schema: validationSchema })
@@ -63,18 +63,16 @@ export default class SimonsaysController {
     }
   }
 
-  // NUEVO: Validar un solo color
   public async playColor({ authUser, params, request, response }: HttpContext) {
     try {
       const userId = Number(authUser.id)
       const gameId = params.id
 
-      // Validar input
       const validationSchema = schema.create({
         color: schema.string({}, [
           rules.minLength(4),
           rules.maxLength(7),
-          rules.regex(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/), // Solo hex válidos
+          rules.regex(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/),
         ]),
       })
 
@@ -89,13 +87,11 @@ export default class SimonsaysController {
     }
   }
 
-  // Escoger color para agregar a la secuencia del oponente
   public async chooseColor({ authUser, params, request, response }: HttpContext) {
     try {
       const userId = Number(authUser.id)
       const gameId = params.id
 
-      // Validar input
       const validationSchema = schema.create({
         chosenColor: schema.string({}, [
           rules.minLength(1),

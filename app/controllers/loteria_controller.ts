@@ -5,9 +5,7 @@ import { schema, rules } from '@adonisjs/validator'
 export default class LoteriaController {
   private loteriaService = new LoteriaService()
 
-  // ========================================
   // MÉTODOS DE SELECCIÓN DE CARTAS
-  // ========================================
 
   public async generateCard({ authUser, params, response }: HttpContext) {
     try {
@@ -35,9 +33,7 @@ export default class LoteriaController {
     }
   }
 
-  // ========================================
   // MÉTODOS DEL ANFITRIÓN
-  // ========================================
 
   public async drawCard({ authUser, params, response }: HttpContext) {
     try {
@@ -106,9 +102,7 @@ export default class LoteriaController {
     }
   }
 
-  // ========================================
   // MÉTODOS DE LOS JUGADORES
-  // ========================================
 
   public async placeToken({ authUser, params, request, response }: HttpContext) {
     try {

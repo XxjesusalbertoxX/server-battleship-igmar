@@ -2,12 +2,13 @@ import AuthController from '#controllers/auth_controller'
 import PeopleController from '#controllers/people_controller'
 import router from '@adonisjs/core/services/router'
 import AuthJwt from '#middleware/auth_jwt_middleware'
+import LogsController from '#controllers/logs_controller'
 import UserModel from '#models/user'
 const GameController = () => import('#controllers/games_controller')
 const SimonsaysController = () => import('#controllers/simonsays_controller')
 const BattleshipsController = () => import('#controllers/battleships_controller')
 const StatsController = () => import('#controllers/stats_controller')
-const LoteriaController = () => import('#controllers/loteria_controller') // <-- AGREGAR
+const LoteriaController = () => import('#controllers/loteria_controller')
 
 router.post('/register', (ctx) => new AuthController().register(ctx))
 router.post('/login', (ctx) => new AuthController().login(ctx))
@@ -28,6 +29,11 @@ router
     router.get('/people/:id', (ctx) => new PeopleController().show(ctx))
     router.put('/people/:id', (ctx) => new PeopleController().update(ctx))
     router.patch('/people/:id/deactivate', (ctx) => new PeopleController().softDelete(ctx))
+
+    // Rutas de logs
+    router.get('/logs', (ctx) => new LogsController().index(ctx))
+    router.get('/logs/user/:userId', (ctx) => new LogsController().getByUser(ctx))
+    router.get('/logs/table/:table', (ctx) => new LogsController().getByTable(ctx))
   })
   .middleware([
     async (ctx, next) => {

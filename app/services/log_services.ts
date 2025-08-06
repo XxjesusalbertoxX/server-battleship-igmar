@@ -1,4 +1,16 @@
 import { LogModel } from '#models/log'
+import User from '#models/user'
+
+export interface LogWithUser {
+  id: string
+  user_id: number
+  user_name: string
+  action: string
+  table: string
+  description?: string
+  metadata?: any
+  timestamp: Date
+}
 
 export class LogService {
   static async log(
@@ -19,6 +31,61 @@ export class LogService {
       })
     } catch (error) {
       console.error('[LogService] Error al guardar log:', error)
+    }
+  }
+
+  static async getLogs(page: number = 1, limit: number = 10): Promise<LogWithUser[]> {
+    try {
+      const logs = await LogModel.find()
+        .sort({ timestamp: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean()
+
+      // Obtener información de usuarios
+      const userIds = [...new Set(logs.map((log) => log.user_id))]
+      const users = await User.query().whereIn('id', userIds)
+      const userMap = new Map(users.map((user) => [user.id, user.name]))
+
+      return logs.map((log) => ({
+        id: log._id.toString(),
+        user_id: log.user_id,
+        user_name: userMap.get(log.user_id) || 'Usuario desconocido',
+        action: log.action,
+        table: log.table,
+        description: log.description,
+        metadata: log.metadata,
+        timestamp: log.timestamp,
+      }))
+    } catch (error) {
+      console.error('[LogService] Error al obtener logs:', error)
+      return []
+    }
+  }
+
+  static async getLogsByUser(userId: number, page: number = 1, limit: number = 10) {
+    try {
+      return await LogModel.find({ user_id: userId })
+        .sort({ timestamp: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean()
+    } catch (error) {
+      console.error('[LogService] Error al obtener logs por usuario:', error)
+      return []
+    }
+  }
+
+  static async getLogsByTable(table: string, page: number = 1, limit: number = 10) {
+    try {
+      return await LogModel.find({ table })
+        .sort({ timestamp: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean()
+    } catch (error) {
+      console.error('[LogService] Error al obtener logs por tabla:', error)
+      return []
     }
   }
 }
