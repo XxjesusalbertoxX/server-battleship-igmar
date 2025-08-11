@@ -59,6 +59,10 @@ export class SimonSaysService {
   }
 
   async startSimonGame(game: GameSimonSayDoc, _userId: number) {
+    console.log('=== START SIMON GAME ===')
+    console.log('Game ID:', game._id.toString())
+    console.log('Current status:', game.status)
+
     const players = await this.playerGameModel.findByGameId(game._id.toString())
 
     const bothReady = players.every((p) => p.ready)
@@ -80,11 +84,13 @@ export class SimonSaysService {
       currentSequenceIndex: 0,
       globalSequence: [],
       lastAddedColor: null,
+      currentTurnUserId: hostPlayer.userId, // AGREGAR esto también
     })
 
     console.log('=== GAME STARTED ===')
     console.log('Host (choosing first color):', hostPlayer.userId)
     console.log('Updated status:', updatedGame!.status)
+
     return updatedGame
   }
 
@@ -251,38 +257,35 @@ export class SimonSaysService {
     }
   }
 
+  // ...existing code...
   async getSimonLobbyStatus(game: GameSimonSayDoc, userId: number) {
     const playerDocs = await this.getPlayerLobbyData(game)
     this.verifyPlayerInGame(playerDocs, userId)
 
     const bothReady = playerDocs.length === 2 && playerDocs.every((p) => p.ready)
 
-    // ARREGLADO: Cuando ambos están listos, iniciar automáticamente el juego
     if (bothReady && game.status === 'waiting') {
-      // Cambiar a started y luego ejecutar startSimonGame
       await GameModel.update_by_id(game._id.toString(), { status: 'started' })
-
-      // Ejecutar startSimonGame para configurar turnos
       const updatedGame = await this.startSimonGame(
         { ...game, status: 'started' } as GameSimonSayDoc,
         userId
       )
-
       return {
         status: updatedGame?.status || 'choosing_first_color',
-        availableColors: game.availableColors,
+        availableColors: updatedGame?.availableColors || game.availableColors,
         players: playerDocs,
         started: true,
-        canStart: bothReady,
+        canStart: true,
       }
     }
 
-    if (game.status === 'started') {
-      // Si ya está started pero no se ejecutó startSimonGame, ejecutarlo ahora
-      const updatedGame = await this.startSimonGame(game, userId)
-
+    if (
+      ['started', 'choosing_first_color', 'repeating_sequence', 'choosing_next_color'].includes(
+        game.status
+      )
+    ) {
       return {
-        status: updatedGame?.status || 'choosing_first_color',
+        status: game.status,
         availableColors: game.availableColors,
         players: playerDocs,
         started: true,
@@ -291,13 +294,14 @@ export class SimonSaysService {
     }
 
     return {
-      status: game.status,
+      status: game.status, // waiting
       availableColors: game.availableColors,
       players: playerDocs,
-      started: game.status === 'choosing_first_color',
+      started: false,
       canStart: bothReady,
     }
   }
+  // ...existing code...
 
   private determinePhase(game: GameSimonSayDoc, userId: number): string {
     console.log('=== DETERMINE PHASE ===')

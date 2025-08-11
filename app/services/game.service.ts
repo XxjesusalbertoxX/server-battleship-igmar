@@ -194,15 +194,14 @@ export default class GameService {
       if (!validBattleshipStatuses.includes(game.status)) {
         throw new Error('La partida no ha comenzado')
       }
+      // ...existing code...
     } else if (game.gameType === 'simonsay') {
-      // ARREGLADO: Incluir todos los estados válidos de Simon Says
       const validSimonSayStatuses = [
         'started',
-        'in_progress',
+        'choosing_first_color',
+        'repeating_sequence',
+        'choosing_next_color',
         'finished',
-        'choosing_first_color', // AGREGAR
-        'repeating_sequence', // AGREGAR
-        'choosing_next_color', // AGREGAR
       ]
       if (!validSimonSayStatuses.includes(game.status)) {
         throw new Error('La partida no ha comenzado')
