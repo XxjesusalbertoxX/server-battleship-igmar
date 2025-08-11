@@ -17,7 +17,7 @@ services:
       DB_DATABASE: db_igmar
       DB_HOST: postgres      # <— nombre del servicio en la red
       DB_PORT: 5432
-      MONGO_URL: mongodb://admin:admin123@mongo:27017/igmar_db?authSource=admin
+      MONGO_URL: mongodb://admin:admin123@mongo:5000,18.217.230.121:1006/igmar_db?authSource=admin&replicaSet=rs0
     volumes:
       - ./:/app
     networks:
