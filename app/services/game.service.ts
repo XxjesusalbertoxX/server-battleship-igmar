@@ -5,7 +5,6 @@ import { toObjectId } from '../utils/utils.js'
 import { BattleshipService } from './battleship.service.js'
 import { SimonSaysService } from './simon_says.service.js'
 import { LoteriaService } from './loteria.service.js' // <-- agregar
-import UserService from '#services/user.service'
 import User from '../models/user.js'
 import { GameSimonSayDoc } from '#models/simonsay/game_simon_say'
 
@@ -46,8 +45,7 @@ export default class GameService {
   private playerGameModel = PlayerGameModel.base
   private battleshipService: BattleshipService
   private simonSaysService: SimonSaysService
-  private loteriaService: LoteriaService // <-- agregar
-  private userService = new UserService()
+  private loteriaService: LoteriaService
 
   constructor() {
     this.battleshipService = new BattleshipService()

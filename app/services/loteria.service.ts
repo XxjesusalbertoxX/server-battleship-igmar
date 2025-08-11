@@ -141,6 +141,7 @@ export class LoteriaService {
 
   async joinLoteriaGame(userId: number, code: string) {
     const game = await this.gameModel.find_one({ code, status: 'waiting' })
+    console.log(game)
     if (!game) throw new Error('Partida no encontrada o no disponible para unirse')
 
     if (game.players.length >= game.maxPlayers) {

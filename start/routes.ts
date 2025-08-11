@@ -28,7 +28,7 @@ router
     router.get('/people/statistics', (ctx) => new PeopleController().statistics(ctx))
     router.get('/people/:id', (ctx) => new PeopleController().show(ctx))
     router.put('/people/:id', (ctx) => new PeopleController().update(ctx))
-  router.patch('/people/:id/deactivate', (ctx) => new PeopleController().deactivate(ctx))
+    router.patch('/people/:id/deactivate', (ctx) => new PeopleController().deactivate(ctx))
 
     // Rutas de logs
     router.get('/logs', (ctx) => new LogsController().index(ctx))
