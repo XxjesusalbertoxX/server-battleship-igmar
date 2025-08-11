@@ -48,9 +48,20 @@ export default class PeopleController {
       if (!userId) return response.status(401).json({ error: 'No autorizado' })
 
       const payload = request.only(['firstName', 'lastName', 'age', 'genre'])
+
+      // VALIDACIONES MEJORADAS
+      const validationErrors = this.validatePersonData(payload)
+      if (validationErrors.length > 0) {
+        return response.status(400).json({
+          error: 'Datos inválidos',
+          details: validationErrors,
+        })
+      }
+
       const person = await PeopleService.create(payload, userId)
       return response.status(201).json(person)
-    } catch {
+    } catch (error) {
+      console.error('Error creating person:', error)
       return response.status(500).json({ error: 'Error al crear persona' })
     }
   }
@@ -62,6 +73,16 @@ export default class PeopleController {
       if (!userId) return response.status(401).json({ error: 'No autorizado' })
 
       const payload = request.only(['firstName', 'lastName', 'age', 'genre'])
+
+      // VALIDACIONES MEJORADAS
+      const validationErrors = this.validatePersonData(payload)
+      if (validationErrors.length > 0) {
+        return response.status(400).json({
+          error: 'Datos inválidos',
+          details: validationErrors,
+        })
+      }
+
       const updated = await PeopleService.update(Number(params.id), payload, userId)
       if (!updated) return response.status(404).json({ error: 'No encontrado' })
 
@@ -70,8 +91,59 @@ export default class PeopleController {
       if (error.message === 'FORBIDDEN') {
         return response.status(403).json({ error: 'No puedes modificar esta persona' })
       }
+      console.error('Error updating person:', error)
       return response.status(500).json({ error: 'Error al actualizar persona' })
     }
+  }
+
+  // NUEVO: Método de validación
+  private validatePersonData(data: any): string[] {
+    const errors: string[] = []
+
+    // Validar firstName
+    if (!data.firstName || typeof data.firstName !== 'string') {
+      errors.push('El nombre es requerido')
+    } else if (data.firstName.trim().length < 2) {
+      errors.push('El nombre debe tener al menos 2 caracteres')
+    } else if (data.firstName.trim().length > 50) {
+      errors.push('El nombre no puede exceder 50 caracteres')
+    } else if (!/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/.test(data.firstName.trim())) {
+      errors.push('El nombre solo puede contener letras y espacios')
+    }
+
+    // Validar lastName
+    if (!data.lastName || typeof data.lastName !== 'string') {
+      errors.push('El apellido es requerido')
+    } else if (data.lastName.trim().length < 2) {
+      errors.push('El apellido debe tener al menos 2 caracteres')
+    } else if (data.lastName.trim().length > 50) {
+      errors.push('El apellido no puede exceder 50 caracteres')
+    } else if (!/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/.test(data.lastName.trim())) {
+      errors.push('El apellido solo puede contener letras y espacios')
+    }
+
+    // Validar age
+    if (!data.age || typeof data.age !== 'number') {
+      errors.push('La edad es requerida')
+    } else {
+      const age = Number(data.age)
+      if (Number.isNaN(age)) {
+        errors.push('La edad debe ser un número válido')
+      } else if (age < 4) {
+        errors.push('La edad mínima es 4 años')
+      } else if (age > 105) {
+        errors.push('La edad máxima es 105 años')
+      }
+    }
+
+    // Validar genre (sin 'other')
+    if (!data.genre || typeof data.genre !== 'string') {
+      errors.push('El género es requerido')
+    } else if (!['male', 'female'].includes(data.genre)) {
+      errors.push('El género debe ser "male" o "female"')
+    }
+
+    return errors
   }
 
   // PATCH /people/:id/deactivate
