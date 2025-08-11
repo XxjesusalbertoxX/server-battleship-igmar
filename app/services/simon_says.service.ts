@@ -219,18 +219,19 @@ export class SimonSaysService {
 
     const users = await Promise.all([User.find(me.userId), User.find(opponent.userId)])
 
+    // ARREGLADO: Asegurar que siempre se retornen estos campos
     return {
       status: game.status,
-      currentTurnUserId: game.currentTurnUserId,
-      globalSequence: game.globalSequence,
-      availableColors: game.availableColors,
-      currentSequenceIndex: game.currentSequenceIndex,
-      lastAddedColor: game.lastAddedColor,
-      playerRepeatingUserId: game.playerRepeatingUserId,
-      playerChoosingUserId: game.playerChoosingUserId,
-      isMyTurn: game.currentTurnUserId === userId,
+      currentTurnUserId: game.currentTurnUserId || null,
+      globalSequence: game.globalSequence || [],
+      availableColors: game.availableColors || [],
+      currentSequenceIndex: game.currentSequenceIndex || 0,
+      lastAddedColor: game.lastAddedColor || null,
+      playerRepeatingUserId: game.playerRepeatingUserId || null, // IMPORTANTE
+      playerChoosingUserId: game.playerChoosingUserId || null, // IMPORTANTE
+      isMyTurn: game.playerChoosingUserId === userId || game.playerRepeatingUserId === userId,
       phase: this.determinePhase(game, userId),
-      sequenceLength: game.globalSequence.length,
+      sequenceLength: game.globalSequence?.length || 0,
       players: players.map((p, idx) => ({
         userId: p.userId,
         ready: p.ready,
