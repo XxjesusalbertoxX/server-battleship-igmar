@@ -62,8 +62,21 @@ export class SimonSaysService {
     console.log('=== START SIMON GAME ===')
     console.log('Game ID:', game._id.toString())
     console.log('Current status:', game.status)
-
-    const players = await this.playerGameModel.findByGameId(game._id.toString())
+    // IMPORTANTE: obtener jugadores en el mismo orden en que se guardaron en game.players
+    // para que siempre el "host" (el que creó primero) sea el primero del arreglo
+    let players = await this.playerGameModel.findByGameId(game._id.toString())
+    if (Array.isArray((game as any).players) && (game as any).players.length === players.length) {
+      const playerDocsById: Record<string, any> = {}
+      players.forEach((p: any) => (playerDocsById[p._id.toString()] = p))
+      const ordered: any[] = []
+      for (const pid of (game as any).players) {
+        const key = pid.toString()
+        if (playerDocsById[key]) ordered.push(playerDocsById[key])
+      }
+      if (ordered.length === players.length) {
+        players = ordered
+      }
+    }
 
     const bothReady = players.every((p) => p.ready)
     if (!bothReady) {
@@ -201,6 +214,45 @@ export class SimonSaysService {
   }
 
   async getSimonGameStatus(game: GameSimonSayDoc, userId: number) {
+    // AUTOFIX: si estamos en choosing_first_color y falta playerChoosingUserId, reasignar host
+    if (
+      game.status === 'choosing_first_color' &&
+      (game.playerChoosingUserId === null || game.playerChoosingUserId === undefined)
+    ) {
+      try {
+        let playersOrdered = await this.playerGameModel.findByGameId(game._id.toString())
+        if (
+          Array.isArray((game as any).players) &&
+          (game as any).players.length === playersOrdered.length
+        ) {
+          const mapById: Record<string, any> = {}
+          ;(playersOrdered as any[]).forEach((p) => (mapById[p._id.toString()] = p))
+          const orderedTmp: any[] = []
+          for (const pid of (game as any).players) {
+            const key = pid.toString()
+            if (mapById[key]) orderedTmp.push(mapById[key])
+          }
+          if (orderedTmp.length === playersOrdered.length) playersOrdered = orderedTmp
+        }
+        if (playersOrdered.length >= 1) {
+          const host = playersOrdered[0]
+          await GameModel.update_by_id(game._id.toString(), {
+            playerChoosingUserId: host.userId,
+            currentTurnUserId: host.userId,
+          })
+          const refreshed = (await this.gameModel.find_by_id(
+            game._id.toString()
+          )) as GameSimonSayDoc
+          if (refreshed) {
+            game.playerChoosingUserId = refreshed.playerChoosingUserId
+            game.currentTurnUserId = refreshed.currentTurnUserId as any
+          }
+          console.log('[SimonSays][AUTO-FIX] playerChoosingUserId reasignado a', host.userId)
+        }
+      } catch (e) {
+        console.warn('[SimonSays][AUTO-FIX] Falló reasignación playerChoosingUserId', e)
+      }
+    }
     const players = await this.playerGameModel.findByGameId(game._id.toString())
     const me = players.find((p) => p.userId === userId)
     const opponent = players.find((p) => p.userId !== userId)
@@ -272,7 +324,8 @@ export class SimonSaysService {
       )
       return {
         status: updatedGame?.status || 'choosing_first_color',
-        availableColors: updatedGame?.availableColors || game.availableColors,
+        availableColors:
+          (updatedGame as unknown as GameSimonSayDoc)?.availableColors || game.availableColors,
         players: playerDocs,
         started: true,
         canStart: true,
