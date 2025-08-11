@@ -1,7 +1,5 @@
 import { GameModel } from '#models/game'
 import { PlayerGameModel } from '#models/player_game'
-import { Types } from 'mongoose'
-import { toObjectId } from '../utils/utils.js'
 import User from '../models/user.js'
 
 // Cartas de la lotería mexicana (54 cartas tradicionales)
@@ -73,7 +71,7 @@ type CreateLoteriaGameOptions = {
 export class LoteriaService {
   private gameModel = GameModel.loteria
   private playerGameModel = PlayerGameModel.loteria
-  private gameBaseModel = GameModel.base
+  // private gameBaseModel = GameModel.base
 
   // ========================================
   // MÉTODOS DE CREACIÓN DE JUEGO
@@ -638,7 +636,7 @@ export class LoteriaService {
     if (!player) throw new Error('Jugador no encontrado')
 
     // Verificar que todas las cartas marcadas estén en las cartas sacadas
-    const markedCards = player.playerCard.filter((card, index) => player.markedCells[index])
+    const markedCards = player.playerCard.filter((_card, index) => player.markedCells[index])
     const allCardsValid = markedCards.every((card) => game.drawnCards.includes(card))
 
     if (allCardsValid && markedCards.length === 16) {
