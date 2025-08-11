@@ -70,24 +70,22 @@ export class SimonSaysService {
       throw new Error('Se necesitan exactamente 2 jugadores')
     }
 
-    // El jugador que inicia escoge el primer color
-    const startingPlayer = players[Math.floor(Math.random() * players.length)]!
+    const hostPlayer = players[0] // El primer jugador es el host
 
-    await this.gameModel.update_by_id(game._id.toString(), {
+    // Actualizar el juego para que esté en fase de escoger primer color
+    const updatedGame = await GameModel.update_by_id(game._id.toString(), {
       status: 'choosing_first_color',
-      playerChoosingUserId: startingPlayer.userId,
+      playerChoosingUserId: hostPlayer.userId,
       playerRepeatingUserId: null,
-      currentTurnUserId: startingPlayer.userId,
+      currentSequenceIndex: 0,
+      globalSequence: [],
+      lastAddedColor: null,
     })
 
-    return {
-      gameId: game._id.toString(),
-      currentTurnUserId: startingPlayer.userId,
-      status: 'choosing_first_color',
-      phase: 'choosing_first_color',
-      message: 'Escoge el primer color de la secuencia',
-      availableColors: game.availableColors,
-    }
+    console.log('=== GAME STARTED ===')
+    console.log('Host (choosing first color):', hostPlayer.userId)
+    console.log('Updated status:', updatedGame!.status)
+    return updatedGame
   }
 
   async chooseColor(gameId: string, userId: number, chosenColor: string) {
