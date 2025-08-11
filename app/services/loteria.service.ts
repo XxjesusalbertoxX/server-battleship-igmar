@@ -672,8 +672,27 @@ export class LoteriaService {
     })
     if (!player) throw new Error('Jugador no encontrado')
 
+    // DEPURACIÓN: Log para ver qué está pasando
+    console.log('=== VERIFICACIÓN DE VICTORIA ===')
+    console.log('Cartas del jugador:', player.playerCard)
+    console.log('Celdas marcadas:', player.markedCells)
+    console.log('Cartas sacadas:', game.drawnCards)
+    console.log('Tokens usados:', player.tokensUsed)
+
+    // Obtener solo las cartas marcadas (donde markedCells[i] === true)
     const markedCards = player.playerCard.filter((_card, index) => player.markedCells[index])
-    const allCardsValid = markedCards.every((card) => game.drawnCards.includes(card))
+    console.log('Cartas marcadas por el jugador:', markedCards)
+
+    // Verificar que TODAS las cartas marcadas están en drawnCards
+    const allCardsValid = markedCards.every((card) => {
+      const isValid = game.drawnCards.includes(card)
+      console.log(`Carta ${card}: ${isValid ? 'VÁLIDA' : 'INVÁLIDA'}`)
+      return isValid
+    })
+
+    console.log('Todas las cartas válidas:', allCardsValid)
+    console.log('Cantidad de cartas marcadas:', markedCards.length)
+    console.log('=============================')
 
     if (allCardsValid && markedCards.length === 16) {
       // ✅ VICTORIA VÁLIDA
