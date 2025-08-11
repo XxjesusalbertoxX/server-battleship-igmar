@@ -99,33 +99,27 @@ try {
 
 export class GameSimonSayModelClass extends BaseModel<GameSimonSayDoc, GameSimonSayCreateInput> {
   constructor() {
-    super(GameSimonSayModel)
+    super(getOrCreateSimonSayGameModel())
   }
 
+  // Método para agregar color a la secuencia
   async addColorToSequence(gameId: string, color: string) {
-    const game = await this.find_by_id(gameId)
+    const game = (await this.find_by_id(gameId)) as GameSimonSayDoc
     if (!game) throw new Error('Juego no encontrado')
 
-    const newSequence = [...game.globalSequence, color]
-    return this.update_by_id(gameId, {
-      globalSequence: newSequence,
+    game.globalSequence.push(color)
+    game.lastAddedColor = color
+
+    return await this.update_by_id(gameId, {
+      globalSequence: game.globalSequence,
       lastAddedColor: color,
-      currentSequenceIndex: 0, // Reiniciar índice para repetir toda la secuencia
     })
   }
 
+  // Método para actualizar progreso de secuencia
   async updateSequenceProgress(gameId: string, newIndex: number) {
-    return this.update_by_id(gameId, { currentSequenceIndex: newIndex })
-  }
-
-  async setPlayerStates(
-    gameId: string,
-    repeatingUserId: number | null,
-    choosingUserId: number | null
-  ) {
-    return this.update_by_id(gameId, {
-      playerRepeatingUserId: repeatingUserId,
-      playerChoosingUserId: choosingUserId,
+    return await this.update_by_id(gameId, {
+      currentSequenceIndex: newIndex,
     })
   }
 }

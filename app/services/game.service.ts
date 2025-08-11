@@ -188,7 +188,6 @@ export default class GameService {
       return this.loteriaService.getLoteriaGameStatus(game, userId)
     }
 
-    // Para otros juegos (battleship, simonsay)
     // CORREGIDO: Validar estados según el tipo de juego específico
     if (game.gameType === 'battleship') {
       const validBattleshipStatuses = ['started', 'in_progress', 'finished']
@@ -196,13 +195,14 @@ export default class GameService {
         throw new Error('La partida no ha comenzado')
       }
     } else if (game.gameType === 'simonsay') {
+      // ARREGLADO: Incluir todos los estados válidos de Simon Says
       const validSimonSayStatuses = [
         'started',
         'in_progress',
         'finished',
-        'waiting_first_color',
-        'repeating_sequence',
-        'choosing_next_color',
+        'choosing_first_color', // AGREGAR
+        'repeating_sequence', // AGREGAR
+        'choosing_next_color', // AGREGAR
       ]
       if (!validSimonSayStatuses.includes(game.status)) {
         throw new Error('La partida no ha comenzado')
