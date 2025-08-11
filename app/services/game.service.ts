@@ -116,8 +116,8 @@ export default class GameService {
       return this.simonSaysService.createSimonGame({
         userIds,
         code,
-        availableColors: customColors ?? [],
-      }) // <-- CORREGIDO AQUÍ
+        availableColors: customColors || [], // CORREGIDO: usar customColors
+      })
     } else if (gameType === 'loteria') {
       // Para lotería, validar que se pasen los parámetros necesarios
       if (!minPlayers || !maxPlayers) {

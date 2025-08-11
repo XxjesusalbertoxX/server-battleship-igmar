@@ -256,21 +256,55 @@ export class SimonSaysService {
 
     const bothReady = playerDocs.length === 2 && playerDocs.every((p) => p.ready)
 
+    // ARREGLADO: Cuando ambos están listos, iniciar automáticamente el juego
     if (bothReady && game.status === 'waiting') {
+      // Cambiar a started y luego ejecutar startSimonGame
       await GameModel.update_by_id(game._id.toString(), { status: 'started' })
-      game.status = 'started'
+
+      // Ejecutar startSimonGame para configurar turnos
+      const updatedGame = await this.startSimonGame(
+        { ...game, status: 'started' } as GameSimonSayDoc,
+        userId
+      )
+
+      return {
+        status: updatedGame?.status || 'choosing_first_color',
+        availableColors: game.availableColors,
+        players: playerDocs,
+        started: true,
+        canStart: bothReady,
+      }
+    }
+
+    if (game.status === 'started') {
+      // Si ya está started pero no se ejecutó startSimonGame, ejecutarlo ahora
+      const updatedGame = await this.startSimonGame(game, userId)
+
+      return {
+        status: updatedGame?.status || 'choosing_first_color',
+        availableColors: game.availableColors,
+        players: playerDocs,
+        started: true,
+        canStart: bothReady,
+      }
     }
 
     return {
       status: game.status,
       availableColors: game.availableColors,
       players: playerDocs,
-      started: game.status === 'started',
+      started: game.status === 'choosing_first_color',
       canStart: bothReady,
     }
   }
 
   private determinePhase(game: GameSimonSayDoc, userId: number): string {
+    console.log('=== DETERMINE PHASE ===')
+    console.log('Game status:', game.status)
+    console.log('User ID:', userId)
+    console.log('PlayerChoosingUserId:', game.playerChoosingUserId)
+    console.log('PlayerRepeatingUserId:', game.playerRepeatingUserId)
+
     switch (game.status) {
       case 'choosing_first_color':
         return game.playerChoosingUserId === userId ? 'choose_first_color' : 'wait_opponent_choose'
@@ -278,6 +312,8 @@ export class SimonSaysService {
         return game.playerChoosingUserId === userId ? 'choose_next_color' : 'wait_opponent_choose'
       case 'repeating_sequence':
         return game.playerRepeatingUserId === userId ? 'repeat_sequence' : 'wait_opponent_repeat'
+      case 'started':
+        return 'unknown' // Estado inicial
       default:
         return 'unknown'
     }

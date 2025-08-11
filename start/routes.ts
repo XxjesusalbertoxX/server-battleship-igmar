@@ -113,6 +113,7 @@ router
 // Rutas específicas de Simon Says en /simonsay
 router
   .group(() => {
+    router.post('/:id/choose-first-color', [SimonsaysController, 'chooseColor']) // AGREGAR ESTA LÍNEA
     router.post('/:id/play-color', [SimonsaysController, 'repeatColor']) // NUEVO
     router.post('/:id/choose-color', [SimonsaysController, 'chooseColor'])
   })
