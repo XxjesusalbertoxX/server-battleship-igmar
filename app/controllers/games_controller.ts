@@ -30,6 +30,14 @@ export default class GameController {
         createGameParams.drawCooldownSeconds = drawCooldownSeconds || 2 // Valor por defecto
       }
 
+      // AGREGAR: Para Simon Says, extraer customColors
+      if (params.gameType === 'simonsay') {
+        const { customColors } = request.body()
+        if (customColors) {
+          createGameParams.customColors = customColors
+        }
+      }
+
       const createdGame = await this.gameService.createGame(createGameParams)
       return response.created({ gameId: createdGame.id, code: createdGame.code })
     } catch (error) {

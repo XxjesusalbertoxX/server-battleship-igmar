@@ -8,6 +8,7 @@ import { SimonSaysService } from './simon_says.service.js'
 import { LoteriaService } from './loteria.service.js' // <-- agregar
 import UserService from '#services/user.service'
 import User from '../models/user.js'
+import { GameSimonSayDoc } from '#models/simonsay/game_simon_say'
 
 export interface PlayerGameCreateInput {
   userId: number
@@ -112,7 +113,11 @@ export default class GameService {
     if (gameType === 'battleship') {
       return this.battleshipService.createBattleshipGame({ userIds, code })
     } else if (gameType === 'simonsay') {
-      return this.simonSaysService.createSimonGame({ userIds, code, customColors })
+      return this.simonSaysService.createSimonGame({
+        userIds,
+        code,
+        availableColors: customColors ?? [],
+      }) // <-- CORREGIDO AQUÍ
     } else if (gameType === 'loteria') {
       // Para lotería, validar que se pasen los parámetros necesarios
       if (!minPlayers || !maxPlayers) {
@@ -170,7 +175,7 @@ export default class GameService {
     if (game.gameType === 'battleship') {
       return this.battleshipService.startBattleshipGame(game, userId)
     } else {
-      return this.simonSaysService.startSimonGame(game, userId)
+      return this.simonSaysService.startSimonGame(game as unknown as GameSimonSayDoc, userId)
     }
   }
 
@@ -233,7 +238,7 @@ export default class GameService {
     if (game.gameType === 'battleship') {
       return this.battleshipService.getBattleshipGameStatus(game, userId)
     } else if (game.gameType === 'simonsay') {
-      return this.simonSaysService.getSimonGameStatus(game, userId)
+      return this.simonSaysService.getSimonGameStatus(game as unknown as GameSimonSayDoc, userId)
     } else {
       throw new Error('Tipo de juego no soportado')
     }
@@ -261,7 +266,7 @@ export default class GameService {
     if (game.gameType === 'battleship') {
       return this.battleshipService.getBattleshipLobbyStatus(game, userId)
     } else if (game.gameType === 'simonsay') {
-      return this.simonSaysService.getSimonLobbyStatus(game, userId)
+      return this.simonSaysService.getSimonLobbyStatus(game as unknown as GameSimonSayDoc, userId)
     } else {
       throw new Error('Tipo de juego no soportado')
     }
