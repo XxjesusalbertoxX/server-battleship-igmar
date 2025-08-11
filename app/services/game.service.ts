@@ -426,5 +426,9 @@ export default class GameService {
     }
   }
 
+  public async heartbeat(_gameId: string) {
+    return { alive: true }
+  }
+
   // ...existing code...
 }

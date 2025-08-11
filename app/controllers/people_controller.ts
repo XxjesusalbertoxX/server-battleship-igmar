@@ -1,96 +1,107 @@
 import { HttpContext } from '@adonisjs/core/http'
-import { validator } from '@adonisjs/validator'
-import { PersonValidator } from '../validators/person.js'
 import { PeopleService } from '../services/people.service.js'
 
+// ...existing code...
+
 export default class PeopleController {
-  public async index({ request, response }: HttpContext) {
+  // GET /people
+  public async index({ authUser, request, response }: HttpContext) {
     try {
+      const userId = Number(authUser?.id)
+      if (!userId) return response.status(401).json({ error: 'No autorizado' })
+
       const page = Number(request.input('page', 1))
       const limit = Number(request.input('limit', 10))
 
-      const result = await PeopleService.getAll(page, limit)
-      return response.ok(result)
+      const result = await PeopleService.getAllByUser(userId, page, limit)
+
+      return response.json({
+        data: result.all(),
+        total: result.total,
+        page: result.currentPage,
+        pages: result.lastPage,
+      })
     } catch (error) {
-      console.error('❌ Error al obtener personas:', error)
-      return response.internalServerError({ message: 'Error interno del servidor' })
+      return response.status(500).json({ error: 'Error al listar personas' })
     }
   }
 
+  // GET /people/:id
+  public async show({ authUser, params, response }: HttpContext) {
+    try {
+      const userId = Number(authUser?.id)
+      if (!userId) return response.status(401).json({ error: 'No autorizado' })
+
+      const person = await PeopleService.findByIdForUser(Number(params.id), userId)
+      if (!person) return response.status(404).json({ error: 'No encontrado' })
+
+      return response.json(person)
+    } catch {
+      return response.status(500).json({ error: 'Error al obtener persona' })
+    }
+  }
+
+  // POST /people
   public async store({ authUser, request, response }: HttpContext) {
     try {
-      const data = await validator.validate({
-        schema: PersonValidator,
-        data: request.only(['firstName', 'lastName', 'age', 'genre']),
-      })
+      const userId = Number(authUser?.id)
+      if (!userId) return response.status(401).json({ error: 'No autorizado' })
 
-      const person = await PeopleService.create(data, Number(authUser.id))
-      return response.created(person)
-    } catch (error) {
-      console.error('❌ Error en creación de persona:', error)
-      return response.unprocessableEntity({
-        message: 'Validation failed',
-        errors: error.messages || error.message,
-      })
+      const payload = request.only(['firstName', 'lastName', 'age', 'genre'])
+      const person = await PeopleService.create(payload, userId)
+      return response.status(201).json(person)
+    } catch {
+      return response.status(500).json({ error: 'Error al crear persona' })
     }
   }
 
-  public async show({ params, response }: HttpContext) {
-    try {
-      const person = await PeopleService.findById(params.id)
-      if (!person) {
-        return response.notFound({ message: 'Person not found' })
-      }
-      return response.ok(person)
-    } catch (error) {
-      console.error('❌ Error al obtener persona:', error)
-      return response.internalServerError({ message: 'Error interno del servidor' })
-    }
-  }
-
+  // PUT /people/:id
   public async update({ authUser, params, request, response }: HttpContext) {
     try {
-      const data = await validator.validate({
-        schema: PersonValidator,
-        data: request.only(['firstName', 'lastName', 'age', 'genre']),
-      })
+      const userId = Number(authUser?.id)
+      if (!userId) return response.status(401).json({ error: 'No autorizado' })
 
-      const person = await PeopleService.update(params.id, data, Number(authUser.id))
-      if (!person) {
-        return response.notFound({ message: 'Person not found' })
+      const payload = request.only(['firstName', 'lastName', 'age', 'genre'])
+      const updated = await PeopleService.update(Number(params.id), payload, userId)
+      if (!updated) return response.status(404).json({ error: 'No encontrado' })
+
+      return response.json(updated)
+    } catch (error: any) {
+      if (error.message === 'FORBIDDEN') {
+        return response.status(403).json({ error: 'No puedes modificar esta persona' })
       }
-
-      return response.ok(person)
-    } catch (error) {
-      console.error('❌ Error en actualización de persona:', error)
-      return response.unprocessableEntity({
-        message: 'Validation failed',
-        errors: error.messages || error.message,
-      })
+      return response.status(500).json({ error: 'Error al actualizar persona' })
     }
   }
 
-  public async softDelete({ authUser, params, response }: HttpContext) {
+  // PATCH /people/:id/deactivate
+  public async deactivate({ authUser, params, response }: HttpContext) {
     try {
-      const person = await PeopleService.softDelete(params.id, Number(authUser.id))
-      if (!person) {
-        return response.notFound({ message: 'Persona no encontrada' })
-      }
+      const userId = Number(authUser?.id)
+      if (!userId) return response.status(401).json({ error: 'No autorizado' })
 
-      return response.ok({ message: 'Persona eliminada correctamente' })
-    } catch (error) {
-      console.error('❌ Error al eliminar persona:', error)
-      return response.internalServerError({ message: 'Error interno del servidor' })
+      const deleted = await PeopleService.softDelete(Number(params.id), userId)
+      if (!deleted) return response.status(404).json({ error: 'No encontrado' })
+
+      return response.json({ success: true })
+    } catch (error: any) {
+      if (error.message === 'FORBIDDEN') {
+        return response.status(403).json({ error: 'No puedes eliminar esta persona' })
+      }
+      return response.status(500).json({ error: 'Error al eliminar persona' })
     }
   }
 
-  public async statistics({ response }: HttpContext) {
+  // GET /people/statistics
+  public async statistics({ authUser, response }: HttpContext) {
     try {
-      const statistics = await PeopleService.getStatistics()
-      return response.ok(statistics)
-    } catch (error) {
-      console.error('❌ Error al obtener estadísticas:', error)
-      return response.internalServerError({ message: 'Error interno del servidor' })
+      const userId = Number(authUser?.id)
+      if (!userId) return response.status(401).json({ error: 'No autorizado' })
+
+      const stats = await PeopleService.getStatistics(userId)
+      return response.json(stats)
+    } catch {
+      return response.status(500).json({ error: 'Error al obtener estadísticas' })
     }
   }
 }

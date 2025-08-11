@@ -33,18 +33,21 @@ export interface UpdatePersonData {
 }
 
 export class PeopleService {
-  static async getAll(page: number = 1, limit: number = 10) {
-    return await Person.query().where('is_active', true).paginate(page, limit)
+  // Listar SOLO las personas del usuario
+  static async getAllByUser(userId: number, page: number = 1, limit: number = 10) {
+    return await Person.query()
+      .where('is_active', true)
+      .andWhere('user_id', userId)
+      .paginate(page, limit)
   }
 
-  static async findById(id: number) {
-    return await Person.find(id)
+  // Buscar una persona que pertenezca al usuario
+  static async findByIdForUser(id: number, userId: number) {
+    return await Person.query().where('id', id).andWhere('user_id', userId).first()
   }
 
   static async create(data: CreatePersonData, userId: number) {
     const person = await Person.create({ ...data, userId, isActive: true })
-
-    // Log de creación
     await LogService.log(
       userId,
       'create',
@@ -52,14 +55,16 @@ export class PeopleService {
       `Creó persona ${person.firstName} ${person.lastName}`,
       { person_id: person.id, data }
     )
-
     return person
   }
 
   static async update(id: number, data: UpdatePersonData, userId: number) {
     const person = await Person.find(id)
-    if (!person) {
-      return null
+    if (!person) return null
+    // Validar pertenencia
+    if (person.userId !== userId) {
+      // Opcional: lanzar error para controlar 403 en el controlador
+      throw new Error('FORBIDDEN')
     }
 
     const oldData = {
@@ -72,7 +77,6 @@ export class PeopleService {
     person.merge(data)
     await person.save()
 
-    // Log de actualización
     await LogService.log(
       userId,
       'update',
@@ -90,14 +94,15 @@ export class PeopleService {
 
   static async softDelete(id: number, userId: number) {
     const person = await Person.find(id)
-    if (!person) {
-      return null
+    if (!person) return null
+    // Validar pertenencia
+    if (person.userId !== userId) {
+      throw new Error('FORBIDDEN')
     }
 
     person.isActive = false
     await person.save()
 
-    // Log de eliminación
     await LogService.log(
       userId,
       'delete',
@@ -117,10 +122,10 @@ export class PeopleService {
     return person
   }
 
-  static async getStatistics(): Promise<StatisticsResult> {
-    const people = await Person.query().where('is_active', true)
+  static async getStatistics(userId: number): Promise<StatisticsResult> {
+    const people = await Person.query().where('is_active', true).andWhere('user_id', userId)
 
-    // Inicializar contadores
+    // ...existing code...
     let male = 0
     let female = 0
     let adult = 0
@@ -132,16 +137,10 @@ export class PeopleService {
 
     for (const person of people) {
       const isAdult = (person.age ?? 0) >= 18
-
-      // Contador por género
       if (person.genre === 'male') male++
       else if (person.genre === 'female') female++
-
-      // Contador por edad
       if (isAdult) adult++
       else minor++
-
-      // Combinado
       if (person.genre === 'male' && isAdult) maleAdult++
       if (person.genre === 'male' && !isAdult) maleMinor++
       if (person.genre === 'female' && isAdult) femaleAdult++
@@ -149,20 +148,9 @@ export class PeopleService {
     }
 
     return {
-      gender: {
-        male,
-        female,
-      },
-      age: {
-        adult,
-        minor,
-      },
-      combined: {
-        maleAdult,
-        maleMinor,
-        femaleAdult,
-        femaleMinor,
-      },
+      gender: { male, female },
+      age: { adult, minor },
+      combined: { maleAdult, maleMinor, femaleAdult, femaleMinor },
     }
   }
 }
