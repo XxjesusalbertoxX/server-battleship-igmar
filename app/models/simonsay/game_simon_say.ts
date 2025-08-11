@@ -1,103 +1,95 @@
 import mongoose, { Schema, Model } from 'mongoose'
 import { BaseModel } from '../base_model.js'
-
-// IMPORTANTE: Importar el modelo base para asegurar que se inicialice primero
 import { GameBaseDoc, GameBaseCreateInput, GameBaseModel } from '../game_base.js'
 
-// Documento específico para Simon Say - SOLO campos de Simon Say
 export interface GameSimonSayDoc extends Omit<GameBaseDoc, 'status'> {
   gameType: 'simonsay'
-  // Estados específicos de Simon Say
   status:
     | 'waiting'
     | 'started'
-    | 'in_progress'
-    | 'waiting_first_color'
+    | 'choosing_first_color'
     | 'repeating_sequence'
     | 'choosing_next_color'
     | 'finished'
-  // Campos específicos de Simon Say
-  globalSequence?: string[]
-  lastChosenColor?: string
-  currentRound?: number
+  // Secuencia global del juego (compartida)
+  globalSequence: string[]
+  // Colores disponibles para toda la partida
+  availableColors: string[]
+  // Índice actual en la secuencia que debe repetirse
+  currentSequenceIndex: number
+  // Jugador que debe repetir la secuencia actual
+  playerRepeatingUserId: number | null
+  // Jugador que debe escoger el siguiente color
+  playerChoosingUserId: number | null
+  // Último color agregado para referencia
+  lastAddedColor: string | null
 }
 
-// Input específico para Simon Say
 export interface GameSimonSayCreateInput extends Omit<GameBaseCreateInput, 'status'> {
   gameType: 'simonsay'
   status?:
     | 'waiting'
     | 'started'
-    | 'in_progress'
-    | 'waiting_first_color'
+    | 'choosing_first_color'
     | 'repeating_sequence'
     | 'choosing_next_color'
     | 'finished'
   globalSequence?: string[]
-  lastChosenColor?: string
-  currentRound?: number
+  availableColors?: string[]
+  currentSequenceIndex?: number
+  playerRepeatingUserId?: number | null
+  playerChoosingUserId?: number | null
+  lastAddedColor?: string | null
 }
 
-// Schema específico para Simon Say
 const GameSimonSaySchema = new Schema({
   status: {
     type: String,
     enum: [
       'waiting',
       'started',
-      'in_progress',
-      'waiting_first_color',
+      'choosing_first_color',
       'repeating_sequence',
       'choosing_next_color',
       'finished',
     ],
     default: 'waiting',
   },
-  globalSequence: { type: [String], default: undefined },
-  lastChosenColor: { type: String, default: undefined },
-  currentRound: { type: Number, default: 0 },
+  globalSequence: { type: [String], default: [] },
+  availableColors: { type: [String], required: true },
+  currentSequenceIndex: { type: Number, default: 0 },
+  playerRepeatingUserId: { type: Number, default: null },
+  playerChoosingUserId: { type: Number, default: null },
+  lastAddedColor: { type: String, default: null },
 })
 
-// LÓGICA MEJORADA CON VALIDACIÓN DEL MODELO BASE
 let GameSimonSayModel: Model<GameSimonSayDoc>
 
 function getOrCreateSimonSayGameModel(): Model<GameSimonSayDoc> {
-  // VERIFICAR QUE EL MODELO BASE EXISTA Y ESTÉ DISPONIBLE
   if (!GameBaseModel) {
     throw new Error('GameBaseModel no está disponible')
   }
 
-  console.log('GameBaseModel disponible para simonsay:', !!GameBaseModel)
-
-  // 1. Verificar si ya existe en el modelo base
   if (GameBaseModel.discriminators?.simonsay) {
-    console.log('Discriminador simonsay (Game) encontrado en modelo base')
     return GameBaseModel.discriminators.simonsay as Model<GameSimonSayDoc>
   }
 
-  // 2. Verificar si existe en mongoose.models
   const baseModel = mongoose.models.Game
   if (baseModel?.discriminators?.simonsay) {
-    console.log('Discriminador simonsay (Game) encontrado en mongoose.models')
     return baseModel.discriminators.simonsay as Model<GameSimonSayDoc>
   }
 
-  // 3. Crear el discriminador
   try {
-    console.log('Creando discriminador simonsay para Game...')
     const newDiscriminator = GameBaseModel.discriminator<GameSimonSayDoc>(
       'simonsay',
       GameSimonSaySchema
     )
-    console.log('Discriminador simonsay (Game) creado exitosamente')
     return newDiscriminator
   } catch (error) {
-    console.error('Error detallado creando discriminador simonsay (Game):', error)
     throw new Error(`No se pudo crear el modelo GameSimonSay: ${error.message}`)
   }
 }
 
-// ESPERAR A QUE EL MODELO BASE ESTÉ DISPONIBLE ANTES DE CREAR EL DISCRIMINADOR
 try {
   GameSimonSayModel = getOrCreateSimonSayGameModel()
 } catch (error) {
@@ -110,38 +102,30 @@ export class GameSimonSayModelClass extends BaseModel<GameSimonSayDoc, GameSimon
     super(GameSimonSayModel)
   }
 
-  // Métodos específicos para Simon Say
-  async findWaitingSimonSayGames() {
-    return this.model.find({ gameType: 'simonsay', status: 'waiting' })
-  }
-
-  async findActiveSimonSayGames() {
-    return this.model.find({
-      gameType: 'simonsay',
-      status: {
-        $in: [
-          'started',
-          'in_progress',
-          'waiting_first_color',
-          'repeating_sequence',
-          'choosing_next_color',
-        ],
-      },
-    })
-  }
-
-  async updateGlobalSequence(gameId: string, sequence: string[]) {
-    return this.update_by_id(gameId, { globalSequence: sequence })
-  }
-
-  async addColorToGlobalSequence(gameId: string, color: string) {
+  async addColorToSequence(gameId: string, color: string) {
     const game = await this.find_by_id(gameId)
     if (!game) throw new Error('Juego no encontrado')
 
-    const newSequence = [...(game.globalSequence || []), color]
+    const newSequence = [...game.globalSequence, color]
     return this.update_by_id(gameId, {
       globalSequence: newSequence,
-      lastChosenColor: color,
+      lastAddedColor: color,
+      currentSequenceIndex: 0, // Reiniciar índice para repetir toda la secuencia
+    })
+  }
+
+  async updateSequenceProgress(gameId: string, newIndex: number) {
+    return this.update_by_id(gameId, { currentSequenceIndex: newIndex })
+  }
+
+  async setPlayerStates(
+    gameId: string,
+    repeatingUserId: number | null,
+    choosingUserId: number | null
+  ) {
+    return this.update_by_id(gameId, {
+      playerRepeatingUserId: repeatingUserId,
+      playerChoosingUserId: choosingUserId,
     })
   }
 }

@@ -1,21 +1,27 @@
 import { GameModel } from '#models/game'
 import { PlayerGameModel } from '#models/player_game'
+import type { GameSimonSayDoc } from '#models/simonsay/game_simon_say'
 import UserService from './user.service.js'
 import User from '#models/user'
 
 export class SimonSaysService {
+  private gameModel = GameModel.simonSay
   private playerGameModel = PlayerGameModel.simonSay
   private userService = new UserService()
 
   async createSimonGame({
     userIds,
     code,
-    customColors,
+    availableColors,
   }: {
     userIds: number[]
     code: string
-    customColors?: string[]
+    availableColors: string[] // Colores seleccionados por el creador
   }) {
+    if (!availableColors || availableColors.length < 2) {
+      throw new Error('Debes seleccionar al menos 2 colores')
+    }
+
     const createdGame = await GameModel.createGame('simonsay', {
       code,
       players: [],
@@ -23,14 +29,19 @@ export class SimonSaysService {
       hasStarted: false,
       currentTurnUserId: null,
       surrenderedBy: [],
+      availableColors, // Colores para toda la partida
+      globalSequence: [],
+      currentSequenceIndex: 0,
+      playerRepeatingUserId: null,
+      playerChoosingUserId: null,
+      lastAddedColor: null,
     })
 
     const playerGamesData = userIds.map((userId) => ({
       userId,
       gameId: createdGame._id,
       ready: false,
-      customColors: customColors || [],
-      sequence: [],
+      customColorsSelected: true, // El creador ya seleccionó los colores
     }))
 
     const createdPlayerGames = await Promise.all(
@@ -40,184 +51,152 @@ export class SimonSaysService {
     createdGame.players = createdPlayerGames.map((pg) => pg._id)
     await GameModel.update_by_id(createdGame._id.toString(), createdGame)
 
-    return { id: createdGame._id.toString(), code: createdGame.code }
-  }
-
-  async setColors(gameId: string, userId: number, colors: string[]) {
-    if (!colors || colors.length !== 6) {
-      throw new Error('Debes escoger exactamente 6 colores')
+    return {
+      id: createdGame._id.toString(),
+      code: createdGame.code,
+      availableColors: (createdGame as GameSimonSayDoc).availableColors,
     }
-
-    const game = await GameModel.find_by_id(gameId)
-    if (!game) throw new Error('Juego no encontrado')
-    if (game.status !== 'waiting') throw new Error('Solo puedes cambiar colores en el lobby')
-
-    const playerGames = await this.playerGameModel.findByGameId(gameId)
-    const player = playerGames.find((pg) => pg.userId === userId)
-    if (!player) throw new Error('No perteneces a esta partida')
-
-    await this.playerGameModel.updateColors(player._id.toString(), colors)
-
-    return { message: 'Colores actualizados', customColors: colors }
   }
 
-  async startSimonGame(game: any, _userId: number) {
+  async startSimonGame(game: GameSimonSayDoc, _userId: number) {
     const players = await this.playerGameModel.findByGameId(game._id.toString())
 
-    const bothReady = players.every((p) => p.ready && p.customColors?.length === 6)
+    const bothReady = players.every((p) => p.ready)
     if (!bothReady) {
-      throw new Error('Ambos jugadores deben estar listos con 6 colores definidos')
+      throw new Error('Ambos jugadores deben estar listos')
     }
 
+    if (players.length !== 2) {
+      throw new Error('Se necesitan exactamente 2 jugadores')
+    }
+
+    // El jugador que inicia escoge el primer color
     const startingPlayer = players[Math.floor(Math.random() * players.length)]!
 
-    game.currentTurnUserId = startingPlayer.userId
-    game.status = 'waiting_first_color'
-    await GameModel.update_by_id(game._id.toString(), game)
+    await this.gameModel.update_by_id(game._id.toString(), {
+      status: 'choosing_first_color',
+      playerChoosingUserId: startingPlayer.userId,
+      playerRepeatingUserId: null,
+      currentTurnUserId: startingPlayer.userId,
+    })
 
     return {
       gameId: game._id.toString(),
-      currentTurnUserId: game.currentTurnUserId,
-      status: game.status,
-      phase: 'choose_first_color',
-      message: 'Escoge el primer color para tu oponente',
-    }
-  }
-
-  async chooseFirstColor(gameId: string, userId: number, chosenColor: string) {
-    const game = (await GameModel.find_by_id(
-      gameId
-    )) as import('#models/simonsay/game_simon_say').GameSimonSayDoc
-    if (!game) throw new Error('Juego no encontrado')
-    if (game.status !== 'waiting_first_color')
-      throw new Error('No es momento de escoger el primer color')
-    if (game.currentTurnUserId !== userId) throw new Error('No es tu turno')
-
-    const playerGames = await this.playerGameModel.findByGameId(gameId)
-    const currentPlayer = playerGames.find((pg) => pg.userId === userId)
-    const opponent = playerGames.find((pg) => pg.userId !== userId)
-
-    if (!currentPlayer || !opponent) {
-      throw new Error('No se encontraron ambos jugadores')
-    }
-
-    const availableColorsForOpponent = currentPlayer.customColors || []
-
-    if (!availableColorsForOpponent.includes(chosenColor)) {
-      throw new Error('Debes escoger un color que esté disponible para tu oponente')
-    }
-
-    await this.playerGameModel.updateSequence(opponent._id.toString(), [chosenColor])
-    await this.playerGameModel.updateCurrentIndex(opponent._id.toString(), 0)
-
-    game.currentTurnUserId = opponent.userId
-    game.status = 'in_progress'
-    await GameModel.update_by_id(gameId, game)
-
-    return {
-      success: true,
-      phase: 'opponent_turn',
-      message: `Color ${chosenColor} agregado. Turno del oponente para repetir.`,
-      currentTurnUserId: opponent.userId,
-      sequenceLength: 1,
-    }
-  }
-
-  async playColor(gameId: string, userId: number, color: string) {
-    const game = await GameModel.find_by_id(gameId)
-    if (!game) throw new Error('Juego no encontrado')
-    if (game.status !== 'in_progress') throw new Error('El juego no está en progreso')
-    if (game.currentTurnUserId !== userId) throw new Error('No es tu turno')
-
-    const playerGames = await this.playerGameModel.findByGameId(gameId)
-    const currentPlayer = playerGames.find((pg) => pg.userId === userId)
-    const opponent = playerGames.find((pg) => pg.userId !== userId)
-
-    if (!currentPlayer || !opponent) {
-      throw new Error('No se encontraron ambos jugadores')
-    }
-
-    const mySequence = currentPlayer.sequence || []
-    const currentIndex = currentPlayer.currentSequenceIndex || 0
-
-    if (currentIndex >= mySequence.length) {
-      throw new Error('Ya completaste tu secuencia')
-    }
-
-    const expectedColor = mySequence[currentIndex]
-    if (color !== expectedColor) {
-      return await this.endGame(gameId, opponent.userId, currentPlayer.userId, 'wrong_color')
-    }
-
-    const newIndex = currentIndex + 1
-    await this.playerGameModel.updateCurrentIndex(currentPlayer._id.toString(), newIndex)
-
-    if (newIndex >= mySequence.length) {
-      return {
-        success: true,
-        phase: 'choose_color',
-        message: '¡Secuencia completada! Ahora escoge un color para tu oponente.',
-        sequenceCompleted: true,
-        colorsCorrect: newIndex,
-        totalColors: mySequence.length,
-      }
-    } else {
-      return {
-        success: true,
-        phase: 'continue_sequence',
-        message: `Color correcto. Continúa con el siguiente color.`,
-        sequenceCompleted: false,
-        colorsCorrect: newIndex,
-        totalColors: mySequence.length,
-        nextColorIndex: newIndex,
-      }
+      currentTurnUserId: startingPlayer.userId,
+      status: 'choosing_first_color',
+      phase: 'choosing_first_color',
+      message: 'Escoge el primer color de la secuencia',
+      availableColors: game.availableColors,
     }
   }
 
   async chooseColor(gameId: string, userId: number, chosenColor: string) {
-    const game = await GameModel.find_by_id(gameId)
+    const game = (await this.gameModel.find_by_id(gameId)) as GameSimonSayDoc
     if (!game) throw new Error('Juego no encontrado')
-    if (game.status !== 'in_progress') throw new Error('El juego no está en progreso')
-    if (game.currentTurnUserId !== userId) throw new Error('No es tu turno')
 
-    const playerGames = await this.playerGameModel.findByGameId(gameId)
-    const currentPlayer = playerGames.find((pg) => pg.userId === userId)
-    const opponent = playerGames.find((pg) => pg.userId !== userId)
-
-    if (!currentPlayer || !opponent) {
-      throw new Error('No se encontraron ambos jugadores')
+    const validChoosingStates = ['choosing_first_color', 'choosing_next_color']
+    if (!validChoosingStates.includes(game.status)) {
+      throw new Error('No es momento de escoger color')
     }
 
-    const mySequence = currentPlayer.sequence || []
-    const currentIndex = currentPlayer.currentSequenceIndex || 0
-    if (currentIndex < mySequence.length) {
-      throw new Error('Primero debes completar tu secuencia')
+    if (game.playerChoosingUserId !== userId) {
+      throw new Error('No es tu turno para escoger color')
     }
 
-    const availableColorsForOpponent = currentPlayer.customColors || []
-
-    if (!availableColorsForOpponent.includes(chosenColor)) {
-      throw new Error('Debes escoger un color que esté disponible para tu oponente')
+    if (!game.availableColors.includes(chosenColor)) {
+      throw new Error('Color no válido para esta partida')
     }
 
-    const newOpponentSequence = [...(opponent.sequence || []), chosenColor]
-    await this.playerGameModel.updateSequence(opponent._id.toString(), newOpponentSequence)
-    await this.playerGameModel.updateCurrentIndex(opponent._id.toString(), 0)
-    await this.playerGameModel.updateCurrentIndex(currentPlayer._id.toString(), 0)
+    const players = await this.playerGameModel.findByGameId(gameId)
+    const opponent = players.find((p) => p.userId !== userId)
+    if (!opponent) throw new Error('No se encontró el oponente')
 
-    game.currentTurnUserId = opponent.userId
-    await GameModel.update_by_id(gameId, game)
+    // Agregar color a la secuencia global
+    await this.gameModel.addColorToSequence(gameId, chosenColor)
+
+    // Cambiar estado: ahora el oponente debe repetir toda la secuencia
+    await this.gameModel.update_by_id(gameId, {
+      status: 'repeating_sequence',
+      playerRepeatingUserId: opponent.userId,
+      playerChoosingUserId: null,
+      currentTurnUserId: opponent.userId,
+      currentSequenceIndex: 0,
+    })
+
+    const updatedGame = (await this.gameModel.find_by_id(gameId)) as GameSimonSayDoc
 
     return {
       success: true,
-      phase: 'opponent_turn',
-      message: `Color ${chosenColor} agregado. Turno del oponente.`,
+      phase: 'repeating_sequence',
+      message: `Color ${chosenColor} agregado. El oponente debe repetir la secuencia.`,
       currentTurnUserId: opponent.userId,
-      opponentSequenceLength: newOpponentSequence.length,
+      globalSequence: updatedGame.globalSequence,
+      sequenceLength: updatedGame.globalSequence.length,
+      colorAdded: chosenColor,
     }
   }
 
-  async getSimonGameStatus(game: any, userId: number) {
+  async repeatSequenceColor(gameId: string, userId: number, color: string) {
+    const game = (await this.gameModel.find_by_id(gameId)) as GameSimonSayDoc
+    if (!game) throw new Error('Juego no encontrado')
+
+    if (game.status !== 'repeating_sequence') {
+      throw new Error('No es momento de repetir la secuencia')
+    }
+
+    if (game.playerRepeatingUserId !== userId) {
+      throw new Error('No es tu turno para repetir')
+    }
+
+    const currentIndex = game.currentSequenceIndex
+    const expectedColor = game.globalSequence[currentIndex]
+
+    if (color !== expectedColor) {
+      // Error en la secuencia - el jugador pierde
+      const players = await this.playerGameModel.findByGameId(gameId)
+      const winner = players.find((p) => p.userId !== userId)
+      return await this.endGame(gameId, winner!.userId, userId, 'wrong_color')
+    }
+
+    const newIndex = currentIndex + 1
+    await this.gameModel.updateSequenceProgress(gameId, newIndex)
+
+    // Verificar si completó toda la secuencia
+    if (newIndex >= game.globalSequence.length) {
+      // Completó la secuencia - ahora le toca escoger el siguiente color
+      await this.gameModel.update_by_id(gameId, {
+        status: 'choosing_next_color',
+        playerChoosingUserId: userId,
+        playerRepeatingUserId: null,
+        currentTurnUserId: userId,
+        currentSequenceIndex: 0,
+      })
+
+      return {
+        success: true,
+        phase: 'choosing_next_color',
+        message: '¡Secuencia completada! Ahora escoge el siguiente color.',
+        sequenceCompleted: true,
+        colorsCorrect: newIndex,
+        totalColors: game.globalSequence.length,
+        currentTurnUserId: userId,
+      }
+    } else {
+      // Continúa repitiendo la secuencia
+      return {
+        success: true,
+        phase: 'repeating_sequence',
+        message: `Color correcto. Continúa con el siguiente.`,
+        sequenceCompleted: false,
+        colorsCorrect: newIndex,
+        totalColors: game.globalSequence.length,
+        nextColorIndex: newIndex,
+        expectedNextColor: game.globalSequence[newIndex], // Para debugging
+      }
+    }
+  }
+
+  async getSimonGameStatus(game: GameSimonSayDoc, userId: number) {
     const players = await this.playerGameModel.findByGameId(game._id.toString())
     const me = players.find((p) => p.userId === userId)
     const opponent = players.find((p) => p.userId !== userId)
@@ -234,10 +213,9 @@ export class SimonSaysService {
         winner: game.winner,
         winnerName: winnerUser?.name || 'Desconocido',
         loserName: loserUser?.name || 'Desconocido',
-        mySequence: me.sequence || [],
-        opponentSequence: opponent.sequence || [],
-        myColors: me.customColors || [],
-        opponentColors: opponent.customColors || [],
+        finalSequence: game.globalSequence,
+        availableColors: game.availableColors,
+        sequenceLength: game.globalSequence.length,
       }
     }
 
@@ -246,13 +224,19 @@ export class SimonSaysService {
     return {
       status: game.status,
       currentTurnUserId: game.currentTurnUserId,
+      globalSequence: game.globalSequence,
+      availableColors: game.availableColors,
+      currentSequenceIndex: game.currentSequenceIndex,
+      lastAddedColor: game.lastAddedColor,
+      playerRepeatingUserId: game.playerRepeatingUserId,
+      playerChoosingUserId: game.playerChoosingUserId,
+      isMyTurn: game.currentTurnUserId === userId,
+      phase: this.determinePhase(game, userId),
+      sequenceLength: game.globalSequence.length,
       players: players.map((p, idx) => ({
-        userId: p!.userId,
-        ready: p!.ready,
-        // SOLO campos específicos de Simon Say
-        customColors: p!.customColors || [],
-        sequence: p!.sequence || [],
-        currentSequenceIndex: p!.currentSequenceIndex || 0,
+        userId: p.userId,
+        ready: p.ready,
+        customColorsSelected: p.customColorsSelected,
         user: users[idx]
           ? {
               id: users[idx]!.id,
@@ -264,62 +248,44 @@ export class SimonSaysService {
             }
           : undefined,
       })),
-      myColors: opponent.customColors || [],
-      myCustomColors: me.customColors || [],
-      opponentColors: me.customColors || [],
-      isMyTurn: game.currentTurnUserId === userId,
-      mySequenceLength: (me.sequence || []).length,
-      opponentSequenceLength: (opponent.sequence || []).length,
-      myCurrentProgress: me.currentSequenceIndex || 0,
-      phase:
-        game.status === 'waiting_first_color'
-          ? 'choose_first_color'
-          : (me.currentSequenceIndex || 0) < (me.sequence || []).length
-            ? 'repeat_sequence'
-            : 'choose_color',
-      opponentName:
-        users[1]?.name === users[0]?.name
-          ? users[0]?.name
-          : users.find((u) => u?.id === opponent.userId)?.name || 'Oponente',
-      lastColorAdded:
-        me.sequence && me.sequence.length > 0 ? me.sequence[me.sequence.length - 1] : null,
-      mySequenceVersion: me.sequence ? me.sequence.length : 0,
+      opponentName: users.find((u) => u?.id !== me.userId)?.name || 'Oponente',
     }
   }
 
-  async getSimonLobbyStatus(game: any, userId: number) {
-    const defaultColors = ['#FF0000', '#0000FF', '#00FF00', '#FFFF00', '#800080', '#FFA500']
-
+  async getSimonLobbyStatus(game: GameSimonSayDoc, userId: number) {
     const playerDocs = await this.getPlayerLobbyData(game)
     this.verifyPlayerInGame(playerDocs, userId)
 
-    for (const p of playerDocs) {
-      if (!p.customColors || p.customColors.length !== 6) {
-        p.customColors = defaultColors
-        await this.playerGameModel.updateColors(p._id, defaultColors)
-      }
-    }
-
     const bothReady = playerDocs.length === 2 && playerDocs.every((p) => p.ready)
-    const bothHaveColors = playerDocs.every((p) => p.customColors?.length === 6)
 
-    if (bothReady && bothHaveColors && game.status === 'waiting') {
+    if (bothReady && game.status === 'waiting') {
       await GameModel.update_by_id(game._id.toString(), { status: 'started' })
       game.status = 'started'
     }
 
     return {
       status: game.status,
-      players: playerDocs.map((p) => ({
-        ...p,
-        hasColors: p.customColors?.length === 6,
-      })),
+      availableColors: game.availableColors,
+      players: playerDocs,
       started: game.status === 'started',
+      canStart: bothReady,
     }
   }
 
-  // LIMPIO - Solo campos de Simon Say
-  private async getPlayerLobbyData(game: any) {
+  private determinePhase(game: GameSimonSayDoc, userId: number): string {
+    switch (game.status) {
+      case 'choosing_first_color':
+        return game.playerChoosingUserId === userId ? 'choose_first_color' : 'wait_opponent_choose'
+      case 'choosing_next_color':
+        return game.playerChoosingUserId === userId ? 'choose_next_color' : 'wait_opponent_choose'
+      case 'repeating_sequence':
+        return game.playerRepeatingUserId === userId ? 'repeat_sequence' : 'wait_opponent_repeat'
+      default:
+        return 'unknown'
+    }
+  }
+
+  private async getPlayerLobbyData(game: GameSimonSayDoc) {
     const players = await this.playerGameModel.findByGameId(game._id.toString())
 
     return Promise.all(
@@ -331,10 +297,7 @@ export class SimonSaysService {
           _id: player._id.toString(),
           userId: player.userId,
           ready: player.ready,
-          // SOLO campos específicos de Simon Say
-          customColors: player.customColors || [],
-          sequence: player.sequence || [],
-          currentSequenceIndex: player.currentSequenceIndex || 0,
+          customColorsSelected: player.customColorsSelected,
           user: {
             id: user.id,
             name: user.name,
@@ -349,19 +312,16 @@ export class SimonSaysService {
   }
 
   private async endGame(gameId: string, winnerId: number, loserId: number, reason: string) {
-    const game = await GameModel.find_by_id(gameId)
-    if (!game) throw new Error('Juego no encontrado')
-
-    const playerGames = await this.playerGameModel.findByGameId(gameId)
-    const winner = playerGames.find((pg) => pg.userId === winnerId)
-    const loser = playerGames.find((pg) => pg.userId === loserId)
+    const players = await this.playerGameModel.findByGameId(gameId)
+    const winner = players.find((pg) => pg.userId === winnerId)
+    const loser = players.find((pg) => pg.userId === loserId)
 
     if (winner && loser) {
       await this.playerGameModel.update_by_id(winner._id.toString(), { result: 'win' })
       await this.playerGameModel.update_by_id(loser._id.toString(), { result: 'lose' })
     }
 
-    await GameModel.update_by_id(gameId, {
+    await this.gameModel.update_by_id(gameId, {
       status: 'finished',
       winner: winnerId,
       currentTurnUserId: null,
@@ -374,14 +334,16 @@ export class SimonSaysService {
       console.error('Error otorgando experiencia:', error)
     }
 
+    const game = (await this.gameModel.find_by_id(gameId)) as GameSimonSayDoc
+
     return {
       success: false,
       game_over: true,
       winner: winnerId,
       loser: loserId,
       reason,
-      myFinalSequence: loser?.sequence || [],
-      opponentFinalSequence: winner?.sequence || [],
+      finalSequence: game.globalSequence,
+      sequenceLength: game.globalSequence.length,
     }
   }
 
