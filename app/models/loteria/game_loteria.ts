@@ -29,6 +29,11 @@ export interface GameLoteriaDoc extends Omit<GameBaseDoc, 'status'> {
   // Verificación
   playerUnderReview?: number // ID del jugador en revisión
   reviewStartTime?: Date // Cuándo empezó la revisión
+
+  bannedPlayers?: string[] // Nombres de jugadores baneados
+  winners?: string[] // Nombres de ganadores
+  losers?: string[] // Nombres de perdedores
+  winner?: number // ID del jugador ganador
 }
 
 // Input específico para Lotería
@@ -51,6 +56,10 @@ export interface GameLoteriaCreateInput extends Omit<GameBaseCreateInput, 'statu
   reviewStartTime?: Date
   drawCooldownSeconds?: number // Tiempo de espera entre jugadas (opcional)
   lastDrawAt?: Date // Última vez que se sacó una carta
+  bannedPlayers?: string[]
+  winners?: string[]
+  losers?: string[]
+  winner?: number
 }
 
 // Schema específico para Lotería
@@ -70,6 +79,10 @@ const GameLoteriaSchema = new Schema({
   reviewStartTime: { type: Date, default: null },
   drawCooldownSeconds: { type: Number, default: 2, min: 1, max: 10 },
   lastDrawAt: { type: Date, default: null },
+  bannedPlayers: { type: [String], default: [] },
+  winners: { type: [String], default: [] },
+  losers: { type: [String], default: [] },
+  winner: { type: Number, default: null },
 })
 
 // LÓGICA ROBUSTA PARA OBTENER/CREAR EL DISCRIMINADOR

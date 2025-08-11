@@ -26,7 +26,7 @@ export interface PlayerGameLoteriaDoc extends PlayerGameBaseDoc {
   // Verificación
   claimedWin: boolean // Si reclamó victoria
   claimTime?: Date // Cuándo reclamó
-  verificationResult?: 'pending' | 'valid' | 'invalid' // Resultado de verificación
+  verificationResult?: 'pending' | 'valid' | 'invalid' | null // Resultado de verificación
 }
 
 // Input específico para Lotería
@@ -41,7 +41,7 @@ export interface PlayerGameLoteriaCreateInput extends PlayerGameBaseCreateInput 
   cardGenerated?: boolean
   claimedWin?: boolean
   claimTime?: Date
-  verificationResult?: 'pending' | 'valid' | 'invalid'
+  verificationResult?: 'pending' | 'valid' | 'invalid' | null // CORREGIDO: Solo la interfaz TypeScript
 }
 
 // Schema específico para Lotería
@@ -58,7 +58,7 @@ const PlayerGameLoteriaSchema = new Schema({
   verificationResult: {
     type: String,
     enum: ['pending', 'valid', 'invalid'],
-    default: null,
+    default: null, // CORREGIDO: Solo en el schema de Mongoose
   },
 })
 
