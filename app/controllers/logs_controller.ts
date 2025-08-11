@@ -2,12 +2,16 @@ import { HttpContext } from '@adonisjs/core/http'
 import { LogService } from '../services/log_services.js'
 
 export default class LogsController {
-  public async index({ request, response }: HttpContext) {
+  public async index({ request, response, authUser }: HttpContext) {
     try {
       const page = Number(request.input('page', 1))
       const limit = Number(request.input('limit', 10))
+      const userId = Number(authUser?.id)
+      if (!userId) {
+        return response.unauthorized({ message: 'No autenticado' })
+      }
 
-      const result = await LogService.getLogs(page, limit)
+      const result = await LogService.getLogs(page, limit, userId)
       return response.ok(result)
     } catch (error) {
       console.error('❌ Error al obtener logs:', error)

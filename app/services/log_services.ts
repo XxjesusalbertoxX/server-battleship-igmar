@@ -42,19 +42,34 @@ export class LogService {
     }
   }
 
-  static async getLogs(page: number = 1, limit: number = 10): Promise<LogsResponse> {
+  // Obtener logs con paginación; si se pasa userId, filtra por ese usuario
+  static async getLogs(
+    page: number = 1,
+    limit: number = 10,
+    userId?: number
+  ): Promise<LogsResponse> {
     try {
       const skip = (page - 1) * limit
 
+      // Filtro opcional por usuario
+      const filter: Record<string, any> = {}
+      if (typeof userId === 'number') {
+        filter.user_id = userId
+      }
+
       // Obtener total de documentos
-      const total = await LogModel.countDocuments()
+      const total = await LogModel.countDocuments(filter)
 
       // Obtener logs paginados
-      const logs = await LogModel.find().sort({ timestamp: -1 }).skip(skip).limit(limit).lean()
+      const logs = await LogModel.find(filter)
+        .sort({ timestamp: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean()
 
       // Obtener información de usuarios
       const userIds = [...new Set(logs.map((log) => log.user_id))]
-      const users = await User.query().whereIn('id', userIds)
+      const users = userIds.length > 0 ? await User.query().whereIn('id', userIds) : []
       const userMap = new Map(users.map((user) => [user.id, user.name]))
 
       const data = logs.map((log) => ({
