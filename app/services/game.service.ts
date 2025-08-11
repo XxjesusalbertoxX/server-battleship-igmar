@@ -297,134 +297,87 @@ export default class GameService {
 
   // ...existing code...
 
+  // ...existing code...
+
   public async leaveGame(gameId: string, userId: number) {
     const game = await this.gameModel.find_by_id(gameId)
     if (!game) throw new Error('Juego no encontrado')
 
-    // Para lotería, usar su servicio específico si está en progreso
-    if (game.gameType === 'loteria' && game.status === 'in_progress') {
+    if (game.gameType === 'loteria') {
       return this.handleLoteriaLeave(gameId, userId)
     }
 
-    const playerGames = await this.playerGameModel.find_many({ gameId: new Types.ObjectId(gameId) })
-    const leavingPlayer = playerGames.find((pg) => pg.userId === userId)
-    const opponent = playerGames.find((pg) => pg.userId !== userId)
+    // Para otros tipos de juegos (battleship, simonsay)
+    // Mantener lógica original si es necesario
+    const player = await this.playerGameModel.find_one({
+      userId,
+      gameId: game._id,
+    })
+    if (!player) throw new Error('No perteneces a esta partida')
 
-    if (!leavingPlayer) throw new Error('No perteneces a esta partida')
-
-    // CASO 1: En lobby
-    const lobbyStatuses = ['waiting', 'started', 'card_selection', 'ready_check']
-    if (lobbyStatuses.includes(game.status)) {
-      game.players = game.players.filter((id) => id.toString() !== leavingPlayer._id.toString())
-      await this.gameModel.update_by_id(gameId, { players: game.players })
-
-      if (game.players.length === 0) {
-        await this.gameModel.delete_by_id(gameId)
-        return { left: true, message: 'Has salido y la partida fue eliminada (sin jugadores)' }
-      } else {
-        if (game.gameType === 'loteria') {
-          await this.gameModel.update_by_id(gameId, { status: 'waiting' })
-        } else if (game.players.length === 1) {
-          await this.gameModel.update_by_id(gameId, { status: 'waiting' })
-        }
-      }
-
-      return { left: true, message: 'Has salido del lobby' }
-    }
-
-    // CASO 2: En progreso - Para juegos de 2 jugadores
-    const progressStatuses = [
-      'in_progress',
-      'waiting_first_color',
-      'repeating_sequence',
-      'choosing_next_color',
-    ]
-    if (progressStatuses.includes(game.status) && game.gameType !== 'loteria') {
-      if (!opponent) {
-        game.status = 'finished'
-        game.winner = null
-        await this.gameModel.update_by_id(gameId, game)
-        return { left: true, message: 'Partida terminada' }
-      }
-
-      leavingPlayer.result = 'lose'
-      opponent.result = 'win'
-      await this.playerGameModel.update_by_id(leavingPlayer._id.toString(), leavingPlayer)
-      await this.playerGameModel.update_by_id(opponent._id.toString(), opponent)
-
-      try {
-        await this.userService.grantWinExperience(opponent.userId)
-        await this.userService.grantLossExperience(userId)
-      } catch (error) {
-        console.error('Error otorgando experiencia:', error)
-      }
-
-      game.players = game.players.filter((id) => id.toString() !== leavingPlayer._id.toString())
-      game.status = 'finished'
-      game.winner = opponent.userId
-      game.currentTurnUserId = null
-      await this.gameModel.update_by_id(gameId, game)
-
-      return {
-        left: true,
-        gameOver: true,
-        winner: opponent.userId,
-        message: 'Has abandonado. Victoria para el oponente',
-      }
-    }
-
-    // CASO 3: Ya terminado
-    if (game.status === 'finished') {
-      game.players = game.players.filter((id) => id.toString() !== leavingPlayer._id.toString())
-      await this.gameModel.update_by_id(gameId, { players: game.players })
-      return { left: true, message: 'Has salido de la partida terminada' }
-    }
-
-    throw new Error('No puedes salir de la partida en este momento')
+    await this.playerGameModel.delete_by_id(player._id.toString())
+    return { message: 'Has abandonado la partida', gameEnded: false }
   }
 
-  // NUEVO: Manejo específico para abandonar lotería
   private async handleLoteriaLeave(gameId: string, userId: number) {
-    const loteriaGame = (await this.gameModel.find_by_id(gameId)) as any
-    const playerGames = await this.playerGameModel.find_many({ gameId: new Types.ObjectId(gameId) })
-    const leavingPlayer = playerGames.find((pg) => pg.userId === userId)
+    const game = await this.gameModel.find_by_id(gameId)
+    if (!game) throw new Error('Juego no encontrado')
 
-    if (!leavingPlayer) throw new Error('No perteneces a esta partida')
+    const player = await this.playerGameModel.find_one({
+      userId,
+      gameId: game._id,
+    })
+    if (!player) throw new Error('No perteneces a esta partida')
 
-    // Marcar al jugador como perdedor
-    leavingPlayer.result = 'lose'
-    await this.playerGameModel.update_by_id(leavingPlayer._id.toString(), leavingPlayer)
+    const userInfo = await User.find(userId)
+    const playerName = userInfo?.name || 'Jugador desconocido'
 
-    // Quitar del array de players
-    loteriaGame.players = loteriaGame.players.filter(
-      (id: any) => id.toString() !== leavingPlayer._id.toString()
-    )
-    await this.gameModel.update_by_id(gameId, { players: loteriaGame.players })
+    if ((player as any).isHost) {
+      // SOLO EL ANFITRIÓN TERMINA LA PARTIDA
+      await this.gameModel.update_by_id(gameId, {
+        status: 'finished',
+        winner: null, // Sin ganador por abandono del host
+      })
 
-    // Si era el anfitrión, terminar el juego
-    if ((leavingPlayer as any).isHost) {
-      await this.gameModel.update_by_id(gameId, { status: 'finished' })
-      return {
-        left: true,
-        gameOver: true,
-        message: 'El anfitrión abandonó. Partida terminada.',
+      // Marcar a todos los jugadores como perdedores
+      const allPlayers = await this.playerGameModel.find_many({ gameId: toObjectId(gameId) })
+      for (const otherPlayer of allPlayers) {
+        await this.playerGameModel.update_by_id(otherPlayer._id.toString(), {
+          result: 'lose',
+        })
       }
-    }
 
-    // Si quedan jugadores suficientes, continuar
-    const minPlayers = loteriaGame.minPlayers || 4
-    if (loteriaGame.players.length >= minPlayers) {
-      return { left: true, message: 'Has abandonado. El juego continúa.' }
-    } else {
-      // No hay suficientes jugadores, terminar
-      await this.gameModel.update_by_id(gameId, { status: 'finished' })
       return {
-        left: true,
-        gameOver: true,
-        message: 'No hay suficientes jugadores. Partida terminada.',
+        message: `El anfitrión ${playerName} abandonó la partida. Juego terminado para todos.`,
+        gameEnded: true,
+      }
+    } else {
+      // JUGADOR NORMAL - SOLO CONVERTIR EN ESPECTADOR, NO TERMINAR PARTIDA
+      await this.playerGameModel.update_by_id(player._id.toString(), {
+        result: 'lose',
+        isSpectator: true, // Convertir en espectador
+      })
+
+      // Agregar a lista de abandonados si no está ya
+      const bannedPlayers = game.bannedPlayers || []
+      const abandonedLabel = `${playerName} (abandonó)`
+      if (!bannedPlayers.includes(abandonedLabel)) {
+        bannedPlayers.push(abandonedLabel)
+      }
+
+      await this.gameModel.update_by_id(gameId, {
+        bannedPlayers,
+        // NO cambiar el status - mantener 'in_progress' si estaba en progreso
+      })
+
+      return {
+        message: `${playerName} abandonó la partida y ahora es espectador. La partida continúa.`,
+        gameEnded: false, // La partida NO termina
       }
     }
   }
+
+  // ...existing code...
 
   public async heartbeat(_gameId: string) {
     return { alive: true }

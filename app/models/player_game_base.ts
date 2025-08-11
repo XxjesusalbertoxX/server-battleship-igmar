@@ -23,6 +23,7 @@ export interface PlayerGameBaseDoc extends Document {
   lastSeenAt?: Date | null
   ready: boolean
   rematchAccepted: boolean
+  isSpectator?: boolean // <-- agregar propiedad para espectador
   createdAt?: Date
   updatedAt?: Date
 }

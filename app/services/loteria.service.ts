@@ -355,6 +355,99 @@ export class LoteriaService {
     }
   }
 
+  // ...existing code...
+
+  // NUEVO: Método específico para manejar abandono en lotería
+  async handlePlayerLeave(gameId: string, userId: number) {
+    const game = await this.gameModel.find_by_id(gameId)
+    if (!game) throw new Error('Juego no encontrado')
+
+    const player = await this.playerGameModel.find_one({
+      userId,
+      gameId: game._id,
+    })
+    if (!player) throw new Error('No perteneces a esta partida')
+
+    const userInfo = await User.find(userId)
+    const playerName = userInfo?.name || 'Jugador desconocido'
+
+    if (player.isHost) {
+      // ANFITRIÓN ABANDONA - TERMINAR PARTIDA
+      await this.gameModel.update_by_id(gameId, {
+        status: 'finished',
+        winner: undefined,
+      })
+
+      // Marcar a todos como perdedores
+      const allPlayers = await this.playerGameModel.findByGameId(gameId)
+      for (const p of allPlayers) {
+        await this.playerGameModel.update_by_id(p._id.toString(), {
+          result: 'lose',
+        })
+      }
+
+      return {
+        message: `El anfitrión ${playerName} abandonó. Partida terminada.`,
+        gameEnded: true,
+      }
+    } else {
+      // JUGADOR NORMAL - SOLO ESPECTADOR
+      await this.playerGameModel.update_by_id(player._id.toString(), {
+        result: 'lose',
+        isSpectator: true,
+        claimedWin: false,
+        // Mantener sus fichas y carta para que pueda seguir viendo
+      })
+
+      // Agregar a abandonados
+      const bannedPlayers = game.bannedPlayers || []
+      const abandonedLabel = `${playerName} (abandonó)`
+      if (!bannedPlayers.some((banned) => banned.includes(playerName))) {
+        bannedPlayers.push(abandonedLabel)
+      }
+
+      await this.gameModel.update_by_id(gameId, {
+        bannedPlayers,
+        // NO cambiar status - la partida continúa
+      })
+
+      // VERIFICAR: Si solo queda 1 jugador activo, terminar la partida
+      const allPlayers = await this.playerGameModel.findByGameId(gameId)
+      const activePlayers = allPlayers.filter(
+        (p) => !p.isHost && !p.isSpectator && p.result === 'pending'
+      )
+
+      if (activePlayers.length === 1) {
+        // Solo queda 1 jugador - terminar y declarar ganador
+        const lastPlayer = activePlayers[0]
+        const lastUser = await User.find(lastPlayer.userId)
+
+        await this.playerGameModel.update_by_id(lastPlayer._id.toString(), {
+          result: 'win',
+        })
+
+        await this.gameModel.update_by_id(gameId, {
+          status: 'finished',
+          winner: lastPlayer.userId,
+          winners: [lastUser?.name || 'Jugador'],
+        })
+
+        return {
+          message: `${playerName} abandonó. ${lastUser?.name || 'El último jugador'} gana por ser el único restante.`,
+          gameEnded: true,
+          winnerByDefault: true,
+        }
+      }
+
+      return {
+        message: `${playerName} abandonó y ahora es espectador. La partida continúa.`,
+        gameEnded: false,
+      }
+    }
+  }
+
+  // ...existing code...
+
   async reshuffleCards(gameId: string, userId: number) {
     const game = await this.gameModel.find_by_id(gameId)
     if (!game) throw new Error('Juego no encontrado')

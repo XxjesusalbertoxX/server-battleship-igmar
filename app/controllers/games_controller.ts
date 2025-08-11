@@ -223,23 +223,40 @@ export default class GameController {
 
   public async leaveGame({ authUser, params, response }: HttpContext) {
     try {
-      const gameId = params.id
-      const userId = Number(authUser.id)
-
+      const userId = Number(authUser?.id)
       if (!userId) {
-        return response.unauthorized({ message: 'No estás autenticado' })
+        return response.status(401).json({ error: 'No autorizado' })
       }
 
-      const result = await this.gameService.leaveGame(gameId, userId)
-      return response.ok(result)
-    } catch (error) {
-      if (error.message === 'No perteneces a esta partida') {
-        return response.unauthorized({ message: error.message })
+      const { gameId } = params
+
+      const gameService = new GameService()
+      const result = await gameService.leaveGame(gameId, userId)
+
+      // MEJORAR: Diferentes códigos de respuesta según el resultado
+      if (result.gameEnded) {
+        return response.status(200).json({
+          success: true,
+          message: result.message,
+          gameEnded: true,
+          winnerByDefault: 'winnerByDefault' in result ? (result as any).winnerByDefault : false,
+        })
+      } else {
+        return response.status(200).json({
+          success: true,
+          message: result.message,
+          gameEnded: false,
+        })
       }
-      console.error('Error al salir del juego:', error)
-      return response.badRequest({ message: error.message })
+    } catch (error: any) {
+      console.error('Error leaving game:', error)
+      return response.status(500).json({
+        error: error.message || 'Error interno del servidor',
+      })
     }
   }
+
+  // ...existing code...
 
   public async heartbeat({ params, response }: HttpContext) {
     try {

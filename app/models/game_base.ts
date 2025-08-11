@@ -25,6 +25,7 @@ export interface GameBaseDoc extends Document {
   winner?: number | null
   rematchRequestedBy?: Types.ObjectId[]
   surrenderedBy?: Types.ObjectId[]
+  bannedPlayers?: string[]
   createdAt?: Date
   updatedAt?: Date
 }
