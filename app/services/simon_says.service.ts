@@ -110,14 +110,59 @@ export class SimonSaysService {
   async chooseColor(gameId: string, userId: number, chosenColor: string) {
     const game = (await this.gameModel.find_by_id(gameId)) as GameSimonSayDoc
     if (!game) throw new Error('Juego no encontrado')
-
-    const validChoosingStates = ['choosing_first_color', 'choosing_next_color']
+    // Aceptar también estados legacy para compatibilidad (deploy desfasado)
+    const validChoosingStates = [
+      'choosing_first_color',
+      'choosing_next_color',
+      // legacy / antiguos:
+      'waiting_first_color',
+    ]
     if (!validChoosingStates.includes(game.status)) {
       throw new Error('No es momento de escoger color')
     }
 
-    if (game.playerChoosingUserId !== userId) {
-      throw new Error('No es tu turno para escoger color')
+    // AUTOFIX / compatibilidad: si estamos en choosing_first_color y falta playerChoosingUserId
+    if (
+      (game.status === 'choosing_first_color' || game.status === 'waiting_first_color') &&
+      (game.playerChoosingUserId === null || game.playerChoosingUserId === undefined)
+    ) {
+      const playersFix = await this.playerGameModel.findByGameId(gameId)
+      if (playersFix.length > 0) {
+        // Mantener orden según game.players si existe
+        let ordered = playersFix
+        if (
+          Array.isArray((game as any).players) &&
+          (game as any).players.length === playersFix.length
+        ) {
+          const map: Record<string, any> = {}
+          playersFix.forEach((p: any) => (map[p._id.toString()] = p))
+          ;(ordered as any) = []
+          for (const pid of (game as any).players) {
+            const key = pid.toString()
+            if (map[key]) (ordered as any).push(map[key])
+          }
+          if ((ordered as any).length !== playersFix.length) ordered = playersFix
+        }
+        const host = ordered[0]
+        await this.gameModel.update_by_id(gameId, {
+          playerChoosingUserId: host.userId,
+          currentTurnUserId: host.userId,
+        })
+        game.playerChoosingUserId = host.userId
+        game.currentTurnUserId = host.userId as any
+        console.log(
+          '[SimonSays][CHOOSE_COLOR][AUTO-FIX] playerChoosingUserId asignado a',
+          host.userId
+        )
+      }
+    }
+
+    // Permitir también fallback si deploy viejo usa currentTurnUserId en lugar de playerChoosingUserId
+    const isMyChoosingTurn =
+      game.playerChoosingUserId === userId ||
+      (game.status === 'waiting_first_color' && game.currentTurnUserId === userId)
+    if (!isMyChoosingTurn) {
+      throw new Error('No es tu turno para escoger color.')
     }
 
     if (!game.availableColors.includes(chosenColor)) {

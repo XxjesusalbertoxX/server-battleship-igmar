@@ -10,6 +10,7 @@ export interface GameSimonSayDoc extends Omit<GameBaseDoc, 'status'> {
     | 'choosing_first_color'
     | 'repeating_sequence'
     | 'choosing_next_color'
+    | 'waiting_first_color'
     | 'finished'
   // Secuencia global del juego (compartida)
   globalSequence: string[]
