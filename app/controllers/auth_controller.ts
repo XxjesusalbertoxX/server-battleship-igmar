@@ -64,19 +64,39 @@ export default class AuthController {
 
   public async refresh({ request, response }: HttpContext) {
     const { refreshToken } = request.only(['refreshToken'])
+
+    if (!refreshToken) {
+      return response.status(400).json({ message: 'Refresh token is required' })
+    }
+
     const record = await RefreshToken.query().where('token', refreshToken).first()
-    if (!record || record.expiresAt < DateTime.now()) {
-      return response.unauthorized({ message: 'Invalid refresh token' })
+    if (!record) {
+      console.warn('[Auth] Refresh token not found in database')
+      return response.status(401).json({ message: 'Invalid refresh token' })
+    }
+
+    if (record.expiresAt < DateTime.now()) {
+      console.warn('[Auth] Refresh token expired')
+      // Eliminar token expirado de la base de datos
+      await record.delete()
+      return response.status(401).json({ message: 'Refresh token expired' })
     }
 
     try {
       const payload = verifyJwtToken(refreshToken) as { id: string }
       const newAccessToken = signJwt({ id: payload.id }, ACCESS_EXPIRES_IN)
+
+      console.log('[Auth] Access token refreshed successfully for user:', payload.id)
       return response.ok({ accessToken: newAccessToken })
-    } catch {
-      return response.unauthorized({ message: 'Invalid refresh token' })
+    } catch (error) {
+      console.error('[Auth] Error verifying refresh token:', error)
+      // Eliminar token corrupto de la base de datos
+      await record.delete()
+      return response.status(401).json({ message: 'Invalid refresh token signature' })
     }
   }
+
+  // ...existing code...
 
   public async verify({ request, response }: HttpContext) {
     const authHeader = request.header('Authorization')
