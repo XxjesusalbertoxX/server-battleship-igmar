@@ -10,15 +10,19 @@ const BattleshipsController = () => import('#controllers/battleships_controller'
 const StatsController = () => import('#controllers/stats_controller')
 const LoteriaController = () => import('#controllers/loteria_controller')
 
-router.post('/register', (ctx) => new AuthController().register(ctx))
-router.post('/login', (ctx) => new AuthController().login(ctx))
-router.get('/auth/verify', (ctx) => new AuthController().verify(ctx))
-router.post('/auth/refresh', (ctx) => new AuthController().refresh(ctx))
+router
+  .group(() => {
+    router.post('/register', (ctx) => new AuthController().register(ctx))
+    router.post('/login', (ctx) => new AuthController().login(ctx))
+    router.get('/auth/verify', (ctx) => new AuthController().verify(ctx))
+    router.post('/auth/refresh', (ctx) => new AuthController().refresh(ctx))
 
-router.get('/check-email/:email', async ({ params, response }) => {
-  const user = await UserModel.findByEmail(params.email)
-  return response.ok({ exists: !!user })
-})
+    router.get('/check-email/:email', async ({ params, response }) => {
+      const user = await UserModel.findByEmail(params.email)
+      return response.ok({ exists: !!user })
+    })
+  })
+  .prefix('/api')
 
 router
   .group(() => {
@@ -41,6 +45,7 @@ router
       await mw.handle(ctx, next)
     },
   ])
+  .prefix('/api')
 
 // router
 //   .group(() => {
@@ -85,7 +90,7 @@ router
     router.post('/:id/leave', [GameController, 'leaveGame'])
     router.patch('/:id/heartbeat', [GameController, 'heartbeat'])
   })
-  .prefix('/game')
+  .prefix('/api/game')
   .middleware(async (ctx, next) => {
     await new AuthJwt().handle(ctx, next)
   })
@@ -95,7 +100,7 @@ router
   .group(() => {
     router.post('/:id/attack/:x/:y', [BattleshipsController, 'attack'])
   })
-  .prefix('/battleship')
+  .prefix('/api/battleship')
   .middleware(async (ctx, next) => {
     await new AuthJwt().handle(ctx, next)
   })
@@ -105,7 +110,7 @@ router
     router.get('/games', [StatsController, 'getBattleshipStats'])
     router.get('/game/:id', [StatsController, 'getGameDetails'])
   })
-  .prefix('/battleship/stats')
+  .prefix('/api/battleship/stats')
   .middleware(async (ctx, next) => {
     await new AuthJwt().handle(ctx, next)
   })
@@ -117,7 +122,7 @@ router
     router.post('/:id/play-color', [SimonsaysController, 'repeatColor']) // NUEVO
     router.post('/:id/choose-color', [SimonsaysController, 'chooseColor'])
   })
-  .prefix('/simonsay')
+  .prefix('/api/simonsay')
   .middleware(async (ctx, next) => {
     await new AuthJwt().handle(ctx, next)
   })
@@ -131,7 +136,7 @@ router
     router.post('/:id/claim-win', [LoteriaController, 'claimWin'])
     router.post('/:id/kick-player', [LoteriaController, 'kickPlayer'])
   })
-  .prefix('/loteria')
+  .prefix('/api/loteria')
   .middleware(async (ctx, next) => {
     await new AuthJwt().handle(ctx, next)
   })
