@@ -140,19 +140,33 @@ export class LoteriaService {
   // ========================================
 
   async joinLoteriaGame(userId: number, code: string) {
-    const game = await this.gameModel.find_one({ code, status: 'waiting' })
-    console.log(game)
-    if (!game) throw new Error('Partida no encontrada o no disponible para unirse')
+    // CORREGIR: Buscar partida por código sin filtrar por status
+    const game = await this.gameModel.find_one({ code })
+    console.log('[joinLoteriaGame] Juego encontrado:', game)
 
+    if (!game) throw new Error('Partida no encontrada')
+
+    // VALIDAR: Status debe ser 'waiting' o 'card_selection'
+    if (game.status !== 'waiting' && game.status !== 'card_selection') {
+      throw new Error('La partida ya no está disponible para unirse')
+    }
+
+    // CORREGIR: Validar máximo de jugadores correctamente
     if (game.players.length >= game.maxPlayers) {
       throw new Error(`La partida ya tiene el máximo de ${game.maxPlayers} jugadores`)
     }
 
+    // CORREGIR: Validar que el usuario no esté ya en la partida
     const existingPlayer = await this.playerGameModel.find_one({
       userId,
       gameId: game._id,
     })
-    if (existingPlayer) throw new Error('Ya estás en esta partida')
+    if (existingPlayer) {
+      console.log('[joinLoteriaGame] Usuario ya está en la partida:', existingPlayer)
+      throw new Error('Ya estás en esta partida')
+    }
+
+    console.log(`[joinLoteriaGame] Usuario ${userId} uniéndose a partida ${code}`)
 
     // Crear PlayerGame con todos los campos
     const playerGame = await this.playerGameModel.create({
@@ -172,8 +186,17 @@ export class LoteriaService {
       verificationResult: null,
     })
 
-    game.players.push(playerGame._id)
-    await this.gameModel.update_by_id(game._id.toString(), { players: game.players })
+    console.log('[joinLoteriaGame] PlayerGame creado:', playerGame)
+
+    // CORREGIR: Actualizar la lista de jugadores
+    const updatedPlayers = [...game.players, playerGame._id]
+    await this.gameModel.update_by_id(game._id.toString(), {
+      players: updatedPlayers,
+    })
+
+    console.log(
+      `[joinLoteriaGame] Usuario ${userId} se unió exitosamente. Total jugadores: ${updatedPlayers.length}`
+    )
 
     return game
   }
