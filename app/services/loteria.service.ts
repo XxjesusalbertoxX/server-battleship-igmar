@@ -382,93 +382,93 @@ export class LoteriaService {
   // ...existing code...
 
   // NUEVO: Método específico para manejar abandono en lotería
-  async handlePlayerLeave(gameId: string, userId: number) {
-    const game = await this.gameModel.find_by_id(gameId)
-    if (!game) throw new Error('Juego no encontrado')
+  // async handlePlayerLeave(gameId: string, userId: number) {
+  //   const game = await this.gameModel.find_by_id(gameId)
+  //   if (!game) throw new Error('Juego no encontrado')
 
-    const player = await this.playerGameModel.find_one({
-      userId,
-      gameId: game._id,
-    })
-    if (!player) throw new Error('No perteneces a esta partida')
+  //   const player = await this.playerGameModel.find_one({
+  //     userId,
+  //     gameId: game._id,
+  //   })
+  //   if (!player) throw new Error('No perteneces a esta partida')
 
-    const userInfo = await User.find(userId)
-    const playerName = userInfo?.name || 'Jugador desconocido'
+  //   const userInfo = await User.find(userId)
+  //   const playerName = userInfo?.name || 'Jugador desconocido'
 
-    if (player.isHost) {
-      // ANFITRIÓN ABANDONA - TERMINAR PARTIDA
-      await this.gameModel.update_by_id(gameId, {
-        status: 'finished',
-        winner: undefined,
-      })
+  //   if (player.isHost) {
+  //     // ANFITRIÓN ABANDONA - TERMINAR PARTIDA
+  //     await this.gameModel.update_by_id(gameId, {
+  //       status: 'finished',
+  //       winner: undefined,
+  //     })
 
-      // Marcar a todos como perdedores
-      const allPlayers = await this.playerGameModel.findByGameId(gameId)
-      for (const p of allPlayers) {
-        await this.playerGameModel.update_by_id(p._id.toString(), {
-          result: 'lose',
-        })
-      }
+  //     // Marcar a todos como perdedores
+  //     const allPlayers = await this.playerGameModel.findByGameId(gameId)
+  //     for (const p of allPlayers) {
+  //       await this.playerGameModel.update_by_id(p._id.toString(), {
+  //         result: 'lose',
+  //       })
+  //     }
 
-      return {
-        message: `El anfitrión ${playerName} abandonó. Partida terminada.`,
-        gameEnded: true,
-      }
-    } else {
-      // JUGADOR NORMAL - SOLO ESPECTADOR
-      await this.playerGameModel.update_by_id(player._id.toString(), {
-        result: 'lose',
-        isSpectator: true,
-        claimedWin: false,
-        // Mantener sus fichas y carta para que pueda seguir viendo
-      })
+  //     return {
+  //       message: `El anfitrión ${playerName} abandonó. Partida terminada.`,
+  //       gameEnded: true,
+  //     }
+  //   } else {
+  //     // JUGADOR NORMAL - SOLO ESPECTADOR
+  //     await this.playerGameModel.update_by_id(player._id.toString(), {
+  //       result: 'lose',
+  //       isSpectator: true,
+  //       claimedWin: false,
+  //       // Mantener sus fichas y carta para que pueda seguir viendo
+  //     })
 
-      // Agregar a abandonados
-      const bannedPlayers = game.bannedPlayers || []
-      const abandonedLabel = `${playerName} (abandonó)`
-      if (!bannedPlayers.some((banned) => banned.includes(playerName))) {
-        bannedPlayers.push(abandonedLabel)
-      }
+  //     // Agregar a abandonados
+  //     const bannedPlayers = game.bannedPlayers || []
+  //     const abandonedLabel = `${playerName} (abandonó)`
+  //     if (!bannedPlayers.some((banned) => banned.includes(playerName))) {
+  //       bannedPlayers.push(abandonedLabel)
+  //     }
 
-      await this.gameModel.update_by_id(gameId, {
-        bannedPlayers,
-        // NO cambiar status - la partida continúa
-      })
+  //     await this.gameModel.update_by_id(gameId, {
+  //       bannedPlayers,
+  //       // NO cambiar status - la partida continúa
+  //     })
 
-      // VERIFICAR: Si solo queda 1 jugador activo, terminar la partida
-      const allPlayers = await this.playerGameModel.findByGameId(gameId)
-      const activePlayers = allPlayers.filter(
-        (p) => !p.isHost && !p.isSpectator && p.result === 'pending'
-      )
+  //     // VERIFICAR: Si solo queda 1 jugador activo, terminar la partida
+  //     const allPlayers = await this.playerGameModel.findByGameId(gameId)
+  //     const activePlayers = allPlayers.filter(
+  //       (p) => !p.isHost && !p.isSpectator && p.result === 'pending'
+  //     )
 
-      if (activePlayers.length === 1) {
-        // Solo queda 1 jugador - terminar y declarar ganador
-        const lastPlayer = activePlayers[0]
-        const lastUser = await User.find(lastPlayer.userId)
+  //     if (activePlayers.length === 1) {
+  //       // Solo queda 1 jugador - terminar y declarar ganador
+  //       const lastPlayer = activePlayers[0]
+  //       const lastUser = await User.find(lastPlayer.userId)
 
-        await this.playerGameModel.update_by_id(lastPlayer._id.toString(), {
-          result: 'win',
-        })
+  //       await this.playerGameModel.update_by_id(lastPlayer._id.toString(), {
+  //         result: 'win',
+  //       })
 
-        await this.gameModel.update_by_id(gameId, {
-          status: 'finished',
-          winner: lastPlayer.userId,
-          winners: [lastUser?.name || 'Jugador'],
-        })
+  //       await this.gameModel.update_by_id(gameId, {
+  //         status: 'finished',
+  //         winner: lastPlayer.userId,
+  //         winners: [lastUser?.name || 'Jugador'],
+  //       })
 
-        return {
-          message: `${playerName} abandonó. ${lastUser?.name || 'El último jugador'} gana por ser el único restante.`,
-          gameEnded: true,
-          winnerByDefault: true,
-        }
-      }
+  //       return {
+  //         message: `${playerName} abandonó. ${lastUser?.name || 'El último jugador'} gana por ser el único restante.`,
+  //         gameEnded: true,
+  //         winnerByDefault: true,
+  //       }
+  //     }
 
-      return {
-        message: `${playerName} abandonó y ahora es espectador. La partida continúa.`,
-        gameEnded: false,
-      }
-    }
-  }
+  //     return {
+  //       message: `${playerName} abandonó y ahora es espectador. La partida continúa.`,
+  //       gameEnded: false,
+  //     }
+  //   }
+  // }
 
   // ...existing code...
 
@@ -513,7 +513,6 @@ export class LoteriaService {
       isHost: me.isHost,
       playerUnderReview: game.playerUnderReview,
       cardsRemaining: game.availableCards.length,
-      // NUEVO: Campos adicionales según los modelos
       bannedPlayers: game.bannedPlayers || [],
       winners: game.winners || [],
       losers: game.losers || [],
@@ -525,7 +524,7 @@ export class LoteriaService {
     if (game.status === 'finished') {
       const winnerUser = game.winner ? await User.find(game.winner) : null
 
-      // Obtener nombres de ganadores y perdedores
+      // Obtener nombres de ganadores y perdedores DE LOS JUGADORES RESTANTES
       const winnerNames = []
       const loserNames = []
 
@@ -540,26 +539,17 @@ export class LoteriaService {
         }
       }
 
-      // Obtener nombres de jugadores baneados
-      const bannedPlayerNames = []
-      for (const player of players.filter((p) => p.isSpectator && !p.isHost)) {
-        const user = users.find((u) => u?.id === player.userId)
-        if (user) {
-          bannedPlayerNames.push(user.name)
-        }
-      }
-
       return {
         ...baseStatus,
         status: 'finished' as const,
         remainingCards: game.availableCards,
-        finalRemainingCards: game.availableCards, // Alias para compatibilidad
+        finalRemainingCards: game.availableCards,
         gameOver: true,
         winner: game.winner,
         winnerName: winnerUser?.name || 'Desconocido',
         winners: winnerNames,
         losers: loserNames,
-        bannedPlayers: bannedPlayerNames,
+        bannedPlayers: game.bannedPlayers || [], // Solo nombres de baneados
         // Solo el anfitrión ve las cartas de todos al final
         ...(me.isHost && {
           finalPlayersCards: players
@@ -586,7 +576,7 @@ export class LoteriaService {
     }
 
     // ========================================
-    // VISTA DEL ANFITRIÓN
+    // VISTA DEL ANFITRIÓN - SOLO JUGADORES ACTIVOS
     // ========================================
     if (me.isHost) {
       return {
@@ -594,7 +584,7 @@ export class LoteriaService {
         isHost: true as const,
         hostView: {
           playersCards: players
-            .filter((p) => !p.isHost)
+            .filter((p) => !p.isHost) // Solo jugadores que AÚN están en la partida
             .map((p) => {
               const user = users.find((u) => u?.id === p.userId)
               return {
@@ -620,7 +610,7 @@ export class LoteriaService {
     }
 
     // ========================================
-    // VISTA DE JUGADORES NORMALES
+    // VISTA DE JUGADORES NORMALES - SOLO OTROS JUGADORES ACTIVOS
     // ========================================
     return {
       ...baseStatus,
@@ -632,7 +622,7 @@ export class LoteriaService {
       myCard: me.playerCard,
       myMarkedCells: me.markedCells,
       result: me.result,
-      isBanned: me.isSpectator, // Si es espectador, probablemente fue baneado
+      isBanned: me.isSpectator,
       user: {
         id: me.userId,
         name: users.find((u) => u?.id === me.userId)?.name || 'Jugador',
@@ -642,7 +632,7 @@ export class LoteriaService {
         exp: users.find((u) => u?.id === me.userId)?.exp || 0,
       },
       playersInfo: players
-        .filter((p) => !p.isHost && p.userId !== userId)
+        .filter((p) => !p.isHost && p.userId !== userId) // Solo otros jugadores activos
         .map((p) => {
           const user = users.find((u) => u?.id === p.userId)
           return {

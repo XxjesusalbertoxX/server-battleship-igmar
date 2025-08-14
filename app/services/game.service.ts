@@ -317,6 +317,8 @@ export default class GameService {
     return { message: 'Has abandonado la partida', gameEnded: false }
   }
 
+  // ...existing code...
+
   private async handleLoteriaLeave(gameId: string, userId: number) {
     const game = await this.gameModel.find_by_id(gameId)
     if (!game) throw new Error('Juego no encontrado')
@@ -334,7 +336,7 @@ export default class GameService {
       // SOLO EL ANFITRIÓN TERMINA LA PARTIDA
       await this.gameModel.update_by_id(gameId, {
         status: 'finished',
-        winner: null, // Sin ganador por abandono del host
+        winner: null,
       })
 
       // Marcar a todos los jugadores como perdedores
@@ -350,30 +352,54 @@ export default class GameService {
         gameEnded: true,
       }
     } else {
-      // JUGADOR NORMAL - SOLO CONVERTIR EN ESPECTADOR, NO TERMINAR PARTIDA
-      await this.playerGameModel.update_by_id(player._id.toString(), {
-        result: 'lose',
-        isSpectator: true, // Convertir en espectador
-      })
+      // JUGADOR NORMAL - ELIMINAR COMPLETAMENTE DE LA PARTIDA
 
-      // Agregar a lista de abandonados si no está ya
+      // 1. Remover de la lista de jugadores del juego
+      const updatedPlayers = game.players.filter((pId) => pId.toString() !== player._id.toString())
+
+      // 2. Agregar a lista de abandonados
       const bannedPlayers = game.bannedPlayers || []
       const abandonedLabel = `${playerName} (abandonó)`
       if (!bannedPlayers.includes(abandonedLabel)) {
         bannedPlayers.push(abandonedLabel)
       }
 
+      // 3. Actualizar el juego
       await this.gameModel.update_by_id(gameId, {
+        players: updatedPlayers,
         bannedPlayers,
         // NO cambiar el status - mantener 'in_progress' si estaba en progreso
       })
 
+      // 4. ELIMINAR completamente el PlayerGame (no convertir a espectador)
+      await this.playerGameModel.delete_by_id(player._id.toString())
+
+      // 5. VERIFICAR: Solo terminar si NO quedan jugadores normales (excluyendo anfitrión)
+      const remainingPlayers = await this.playerGameModel.find_many({ gameId: toObjectId(gameId) })
+      const normalPlayersLeft = remainingPlayers.filter((p) => !(p as any).isHost)
+
+      if (normalPlayersLeft.length === 0) {
+        // No quedan jugadores normales - solo el anfitrión
+        await this.gameModel.update_by_id(gameId, {
+          status: 'finished',
+          winner: null, // Sin ganador porque no hay jugadores
+        })
+
+        return {
+          message: `${playerName} abandonó. No quedan jugadores en la partida.`,
+          gameEnded: true,
+          reason: 'no_players_left',
+        }
+      }
+
       return {
-        message: `${playerName} abandonó la partida y ahora es espectador. La partida continúa.`,
-        gameEnded: false, // La partida NO termina
+        message: `${playerName} abandonó la partida y fue eliminado.`,
+        gameEnded: false,
       }
     }
   }
+
+  // ...existing code...
 
   // ...existing code...
 

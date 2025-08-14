@@ -114,4 +114,22 @@ export default class LoteriaController {
       return response.badRequest({ message: error.message })
     }
   }
+
+  async leaveGame({ authUser, params, response }: HttpContext) {
+    try {
+      const userId = Number(authUser.id)
+      const gameId = params.id
+
+      // Usar el servicio general para manejar la salida
+      const gameModule = await import('#services/game.service')
+      const GameService = gameModule.default
+      const gameService = new GameService()
+      const result = await gameService.leaveGame(gameId, userId)
+
+      return response.ok(result)
+    } catch (error) {
+      console.error('Error al abandonar partida:', error)
+      return response.badRequest({ message: error.message })
+    }
+  }
 }

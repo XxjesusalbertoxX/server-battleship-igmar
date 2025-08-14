@@ -135,6 +135,7 @@ router
     router.post('/:id/place-token', [LoteriaController, 'placeToken'])
     router.post('/:id/claim-win', [LoteriaController, 'claimWin'])
     router.post('/:id/kick-player', [LoteriaController, 'kickPlayer'])
+    router.post('/:id/leave', [LoteriaController, 'leaveGame'])
   })
   .prefix('/api/loteria')
   .middleware(async (ctx, next) => {

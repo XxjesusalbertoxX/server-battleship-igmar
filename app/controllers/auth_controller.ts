@@ -63,12 +63,16 @@ export default class AuthController {
   }
 
   public async refresh({ request, response }: HttpContext) {
-    const { refreshToken } = request.only(['refreshToken'])
+    const { refreshToken, accessToken } = request.only(['refreshToken', 'accessToken'])
 
-    if (!refreshToken) {
-      return response.status(400).json({ message: 'Refresh token is required' })
+    // CAMBIO PRINCIPAL: Validar que ambos tokens sean proporcionados
+    if (!refreshToken || !accessToken) {
+      return response.status(400).json({
+        message: 'Both refresh token and access token are required',
+      })
     }
 
+    // 1. Verificar que el refresh token existe y es válido en BD
     const record = await RefreshToken.query().where('token', refreshToken).first()
     if (!record) {
       console.warn('[Auth] Refresh token not found in database')
@@ -77,26 +81,42 @@ export default class AuthController {
 
     if (record.expiresAt < DateTime.now()) {
       console.warn('[Auth] Refresh token expired')
-      // Eliminar token expirado de la base de datos
       await record.delete()
       return response.status(401).json({ message: 'Refresh token expired' })
     }
 
+    // 2. NUEVO: Verificar que el access token sea válido estructuralmente (no expirado)
     try {
-      const payload = verifyJwtToken(refreshToken) as { id: string }
-      const newAccessToken = signJwt({ id: payload.id }, ACCESS_EXPIRES_IN)
+      const accessPayload = verifyJwtToken(accessToken) as { id: string }
+      const refreshPayload = verifyJwtToken(refreshToken) as { id: string }
 
-      console.log('[Auth] Access token refreshed successfully for user:', payload.id)
+      // 3. Verificar que ambos tokens pertenezcan al mismo usuario
+      if (accessPayload.id !== refreshPayload.id) {
+        console.warn('[Auth] Token mismatch: different users')
+        await record.delete()
+        return response.status(401).json({ message: 'Token mismatch' })
+      }
+
+      // 4. SOLO renovar el tiempo del access token (mismo payload, nueva expiración)
+      const newAccessToken = signJwt({ id: accessPayload.id }, ACCESS_EXPIRES_IN)
+
+      console.log('[Auth] Access token time refreshed successfully for user:', accessPayload.id)
       return response.ok({ accessToken: newAccessToken })
     } catch (error) {
-      console.error('[Auth] Error verifying refresh token:', error)
-      // Eliminar token corrupto de la base de datos
-      await record.delete()
-      return response.status(401).json({ message: 'Invalid refresh token signature' })
+      console.error('[Auth] Error verifying tokens:', error)
+
+      // Si el access token está corrupto o inválido, no renovar
+      if (error.message?.includes('expired')) {
+        return response.status(401).json({
+          message: 'Access token expired. Please login again.',
+        })
+      }
+
+      return response.status(401).json({
+        message: 'Invalid token structure',
+      })
     }
   }
-
-  // ...existing code...
 
   public async verify({ request, response }: HttpContext) {
     const authHeader = request.header('Authorization')
@@ -106,10 +126,13 @@ export default class AuthController {
 
     const token = authHeader.split(' ')[1]
     try {
-      verifyJwtToken(token)
-      return response.ok({ valid: true })
-    } catch {
-      return response.unauthorized({ message: 'Invalid or expired token' })
+      const payload = verifyJwtToken(token)
+      return response.ok({ valid: true, payload })
+    } catch (error) {
+      return response.unauthorized({
+        message: 'Invalid or expired token',
+        error: error.message,
+      })
     }
   }
 }
